@@ -1,1 +1,1 @@
-../../../../abis/qword/auxv.h
+../../../../abis/linux/auxv.h
