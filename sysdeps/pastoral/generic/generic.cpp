@@ -37,7 +37,7 @@
 })
 
 #define SYSCALL4(NUM, ARG0, ARG1, ARG2, ARG3) ({			   \
-	register typeof(ARG3) arg3 asm("r10") = ARG3;			   \
+	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			   \
 	asm volatile ("syscall"									   \
 				  : "=a"(ret), "=d"(errno)					   \
 				  : "a"(NUM), "D"(ARG0), "S"(ARG1), "d"(ARG2), \
@@ -46,9 +46,9 @@
 })
 
 #define SYSCALL6(NUM, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5) ({   \
-	register typeof(ARG3) arg3 asm("r10") = ARG3;			   \
-	register typeof(ARG4) arg4 asm("r8")  = ARG4;			   \
-	register typeof(ARG5) arg5 asm("r9")  = ARG5;			   \
+	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			   \
+	register uint64_t arg4 asm("r8")  = (uint64_t)ARG4;			   \
+	register uint64_t arg5 asm("r9")  = (uint64_t)ARG5;			   \
 	asm volatile ("syscall"									   \
 				  : "=a"(ret), "=d"(errno)					   \
 				  : "a"(NUM), "D"(ARG0), "S"(ARG1), "d"(ARG2), \
