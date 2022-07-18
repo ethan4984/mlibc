@@ -109,7 +109,7 @@ void sys_libc_panic() {
 	sys_exit(255);
 }
 
-int sys_futex_wait(int *pointer, int expected) STUB_ONLY
+int sys_futex_wait(int *pointer, int expected, const struct timespec *time) STUB_ONLY
 int sys_futex_wake(int *pointer) STUB_ONLY
 
 void sys_exit(int status) {
@@ -152,22 +152,38 @@ int sys_anon_free(void *pointer, size_t size) {
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *path, int flags, int *fd) {
+int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	int ret;
 	int errno;
-	SYSCALL3(SYSCALL_OPENAT, dirfd, path, flags);
-	if(ret == -1)
+
+	SYSCALL4(SYSCALL_OPENAT, AT_FDCWD, path, flags, mode);
+
+	if(ret == -1) {
 		return errno;
+	}
+
 	*fd = ret;
+
 	return 0;
 }
 
-int sys_open(const char *path, int flags, int *fd) {
-	return sys_openat(AT_FDCWD, path, flags, fd);
+int sys_openat(int dirfd, const char *path, int flags, int *fd) {
+	int ret;
+	int errno;
+
+	SYSCALL3(SYSCALL_OPENAT, dirfd, path, flags);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	*fd = ret;
+
+	return 0;
 }
 
-int sys_open_dir(const char *path, int *handle) {
-	return sys_open(path, 0, handle);
+int sys_open_dir(const char *path, int *fd) {
+	return sys_open(path, O_DIRECTORY, 0, fd);
 }
 
 int sys_close(int fd) {
