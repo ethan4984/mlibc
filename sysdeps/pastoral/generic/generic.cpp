@@ -112,6 +112,13 @@ void sys_libc_panic() {
 int sys_futex_wait(int *pointer, int expected, const struct timespec *time) STUB_ONLY
 int sys_futex_wake(int *pointer) STUB_ONLY
 
+pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
+    mlibc::infoLogger() << "sys_getpgid() is unimplemented" << frg::endlog;
+    *pgid = 0;
+
+    return 0;
+}
+
 void sys_exit(int status) {
 	int ret, errno;
 	SYSCALL1(SYSCALL_EXIT, status);
