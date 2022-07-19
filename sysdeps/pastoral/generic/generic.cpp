@@ -176,11 +176,11 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *path, int flags, int *fd) {
+int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
 	int ret;
 	int errno;
 
-	SYSCALL3(SYSCALL_OPENAT, dirfd, path, flags);
+	SYSCALL4(SYSCALL_OPENAT, dirfd, path, flags, mode);
 
 	if(ret == -1) {
 		return errno;
