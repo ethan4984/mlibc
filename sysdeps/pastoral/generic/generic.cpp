@@ -112,16 +112,16 @@ void sys_libc_panic() {
 int sys_futex_wait(int *pointer, int expected, const struct timespec *time) STUB_ONLY
 int sys_futex_wake(int *pointer) STUB_ONLY
 
-pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
-    mlibc::infoLogger() << "sys_getpgid() is unimplemented" << frg::endlog;
-    *pgid = 0;
-
-    return 0;
-}
-
 void sys_exit(int status) {
 	int ret, errno;
 	SYSCALL1(SYSCALL_EXIT, status);
+}
+
+pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
+	mlibc::infoLogger() << "sys_getpgid() is unimplemented" << frg::endlog;
+	*pgid = 0;
+
+	return 0;
 }
 
 int sys_tcb_set(void *pointer) {
@@ -367,7 +367,12 @@ int sys_fork(pid_t *child) {
 	return 0;
 }
 
-int sys_waitpid(pid_t pid, int *status, int flags, pid_t *ret_pid) {
+int sys_waitpid(pid_t pid, int *status, int flags, struct rusage *ru, pid_t *ret_pid) {
+	if(ru) {
+		mlibc::infoLogger() << "mlibc: struct rusage in sys_waitpid is unsupported" << frg::endlog;
+		return ENOSYS;
+	}
+
 	int errno, ret;
 	SYSCALL3(SYSCALL_WAITPID, pid, status, flags);
 	if (ret == -1)
