@@ -96,6 +96,8 @@
 #define SYSCALL_GETEGID 37
 #define SYSCALL_SETGID 38
 #define SYSCALL_SETEGID 39
+#define SYSCALL_FCHMOD 40
+#define SYSCALL_FCHMODAT 41
 
 namespace mlibc {
 
@@ -334,7 +336,7 @@ int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restric
 
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
 	mlibc::infoLogger() << "mlibc: " << __func__ << " is a stub!\n" << frg::endlog;
-	return 0; 
+	return 0;
 }
 
 int sys_pselect(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except_set,
@@ -448,7 +450,7 @@ int sys_pipe(int *fds, int flags) {
 		return errno;
 	}
 
-	return 0; 
+	return 0;
 }
 
 int sys_umask(mode_t mode, mode_t *old) {
@@ -477,7 +479,7 @@ int sys_setuid(uid_t uid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETUID, uid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -488,7 +490,7 @@ int sys_seteuid(uid_t euid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETEUID, euid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -514,7 +516,7 @@ int sys_setgid(uid_t gid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETGID, gid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -525,11 +527,38 @@ int sys_setegid(uid_t egid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETEGID, egid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
 	return 0;
+}
+
+
+int sys_fchmod(int fd, mode_t mode) {
+	int errno, ret;
+	SYSCALL2(SYSCALL_FCHMOD, fd, mode);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+int sys_fchmodat(int fd, const char *pathname, mode_t mode, int flags) {
+	int errno, ret;
+	SYSCALL4(SYSCALL_FCHMODAT, fd, pathname, mode, flags);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+int sys_chmod(const char *pathname, mode_t mode) {
+	return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
 }
 
 } // namespace mlibc
