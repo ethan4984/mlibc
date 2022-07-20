@@ -45,6 +45,15 @@
 				  : "rcx", "r11", "memory");				   \
 })
 
+#define SYSCALL5(NUM, ARG0, ARG1, ARG2, ARG3, ARG4)				\
+	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			\
+	register uint64_t arg4 asm("r8") = (uint64_t)ARG4;			\
+	asm volatile ("syscall"										\
+				  : "=a"(ret), "=d"(errno)						\
+				  : "a"(NUM), "D"(ARG0), "S"(ARG1), "d"(ARG2),	\
+				  	"r"(arg3), "r"(arg4)						\
+				  : "rcx", "r11", "memory");
+
 #define SYSCALL6(NUM, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5) ({   \
 	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			   \
 	register uint64_t arg4 asm("r8")  = (uint64_t)ARG4;			   \
@@ -98,6 +107,7 @@
 #define SYSCALL_SETEGID 39
 #define SYSCALL_FCHMOD 40
 #define SYSCALL_FCHMODAT 41
+#define SYSCALL_FCHOWNAT 42
 
 namespace mlibc {
 
@@ -559,6 +569,17 @@ int sys_fchmodat(int fd, const char *pathname, mode_t mode, int flags) {
 
 int sys_chmod(const char *pathname, mode_t mode) {
 	return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
+}
+
+int sys_fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags) {
+	int errno, ret;
+	SYSCALL5(SYSCALL_FCHOWNAT, fd, path, uid, gid, flags);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
 }
 
 } // namespace mlibc
