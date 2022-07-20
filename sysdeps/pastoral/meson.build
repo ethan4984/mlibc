@@ -41,6 +41,7 @@ if not no_headers
 		'include/abi-bits/packet.h',
 		'include/abi-bits/inotify.h',
 		'include/abi-bits/clockid_t.h',
+		'include/abi-bits/shm.h',
 		subdir: 'abi-bits'
 	)
 endif
