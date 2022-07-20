@@ -132,9 +132,7 @@ FILE *popen(const char *command, const char *typestr) {
 		ret = frg::construct<popen_file>(
 			getAllocator(),
 			fds[parent_end],
-			[] (mlibc::abstract_file *abstract) {
-				frg::destruct(getAllocator(), abstract);
-			}
+			mlibc::file_dispose_cb<popen_file>
 		);
 		__ensure(ret);
 
@@ -156,7 +154,7 @@ FILE *popen(const char *command, const char *typestr) {
 
 FILE *open_memstream(char **buf, size_t *sizeloc) {
 	return frg::construct<mlibc::mem_file>(getAllocator(), buf, sizeloc,
-			[] (mlibc::abstract_file *abstract) { frg::destruct(getAllocator(), abstract); });
+			mlibc::file_dispose_cb<mlibc::mem_file>);
 }
 
 int fseeko(FILE *file_base, off_t offset, int whence) {
@@ -193,3 +191,7 @@ int vdprintf(int fd, const char *format, __gnuc_va_list args) {
 	return ret;
 }
 
+char *fgetln(FILE *, size_t *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}

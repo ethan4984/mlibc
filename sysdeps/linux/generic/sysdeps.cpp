@@ -79,8 +79,8 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *path, int flags, int *fd) {
-	auto ret = do_syscall(SYS_openat, dirfd, path, flags);
+int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
+	auto ret = do_syscall(SYS_openat, dirfd, path, flags, mode);
 	if (int e = sc_error(ret); e)
 		return e;
 	*fd = sc_int_result<int>(ret);
@@ -728,6 +728,13 @@ int sys_getrusage(int scope, struct rusage *usage) {
 
 int sys_madvise(void *addr, size_t length, int advice) {
 	auto ret = do_syscall(SYS_madvise, addr, length, advice);
+	if (int e = sc_error(ret); e)
+		return e;
+	return 0;
+}
+
+int sys_msync(void *addr, size_t length, int flags) {
+	auto ret = do_syscall(SYS_msync, addr, length, flags);
 	if (int e = sc_error(ret); e)
 		return e;
 	return 0;
