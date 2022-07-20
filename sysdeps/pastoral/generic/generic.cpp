@@ -45,6 +45,15 @@
 				  : "rcx", "r11", "memory");				   \
 })
 
+#define SYSCALL5(NUM, ARG0, ARG1, ARG2, ARG3, ARG4)				\
+	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			\
+	register uint64_t arg4 asm("r8") = (uint64_t)ARG4;			\
+	asm volatile ("syscall"										\
+				  : "=a"(ret), "=d"(errno)						\
+				  : "a"(NUM), "D"(ARG0), "S"(ARG1), "d"(ARG2),	\
+				  	"r"(arg3), "r"(arg4)						\
+				  : "rcx", "r11", "memory");
+
 #define SYSCALL6(NUM, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5) ({   \
 	register uint64_t arg3 asm("r10") = (uint64_t)ARG3;			   \
 	register uint64_t arg4 asm("r8")  = (uint64_t)ARG4;			   \
@@ -96,6 +105,9 @@
 #define SYSCALL_GETEGID 37
 #define SYSCALL_SETGID 38
 #define SYSCALL_SETEGID 39
+#define SYSCALL_FCHMOD 40
+#define SYSCALL_FCHMODAT 41
+#define SYSCALL_FCHOWNAT 42
 
 namespace mlibc {
 
@@ -174,11 +186,11 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *path, int flags, int *fd) {
+int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
 	int ret;
 	int errno;
 
-	SYSCALL3(SYSCALL_OPENAT, dirfd, path, flags);
+	SYSCALL4(SYSCALL_OPENAT, dirfd, path, flags, mode);
 
 	if(ret == -1) {
 		return errno;
@@ -334,7 +346,7 @@ int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restric
 
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
 	mlibc::infoLogger() << "mlibc: " << __func__ << " is a stub!\n" << frg::endlog;
-	return 0; 
+	return 0;
 }
 
 int sys_pselect(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except_set,
@@ -448,7 +460,7 @@ int sys_pipe(int *fds, int flags) {
 		return errno;
 	}
 
-	return 0; 
+	return 0;
 }
 
 int sys_umask(mode_t mode, mode_t *old) {
@@ -477,7 +489,7 @@ int sys_setuid(uid_t uid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETUID, uid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -488,7 +500,7 @@ int sys_seteuid(uid_t euid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETEUID, euid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -514,7 +526,7 @@ int sys_setgid(uid_t gid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETGID, gid);
 
-	if (ret == -1) {
+	if(ret == -1) {
 		return errno;
 	}
 
@@ -525,7 +537,45 @@ int sys_setegid(uid_t egid) {
 	int errno, ret;
 	SYSCALL1(SYSCALL_SETEGID, egid);
 
-	if (ret == -1) {
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+
+int sys_fchmod(int fd, mode_t mode) {
+	int errno, ret;
+	SYSCALL2(SYSCALL_FCHMOD, fd, mode);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+int sys_fchmodat(int fd, const char *pathname, mode_t mode, int flags) {
+	int errno, ret;
+	SYSCALL4(SYSCALL_FCHMODAT, fd, pathname, mode, flags);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+int sys_chmod(const char *pathname, mode_t mode) {
+	return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
+}
+
+int sys_fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags) {
+	int errno, ret;
+	SYSCALL5(SYSCALL_FCHOWNAT, fd, path, uid, gid, flags);
+
+	if(ret == -1) {
 		return errno;
 	}
 
