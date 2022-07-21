@@ -108,6 +108,10 @@
 #define SYSCALL_FCHMOD 40
 #define SYSCALL_FCHMODAT 41
 #define SYSCALL_FCHOWNAT 42
+#define SYSCALL_SIGACTION 43
+#define SYSCALL_SIGPENDING 44
+#define SYSCALL_SIGPROCMASK 45
+
 
 namespace mlibc {
 
@@ -336,16 +340,6 @@ int sys_stat(fsfd_target fsfdt, int fd, const char *path, int flags, struct stat
 			return -1;
 		}
 	}
-	return 0;
-}
-
-int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restrict retrieve) {
-	mlibc::infoLogger() << "mlibc: " << __func__ << " is a stub!\n" << frg::endlog;
-	return 0;
-}
-
-int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
-	mlibc::infoLogger() << "mlibc: " << __func__ << " is a stub!\n" << frg::endlog;
 	return 0;
 }
 
@@ -581,5 +575,40 @@ int sys_fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags) {
 
 	return 0;
 }
+
+int sys_sigaction(int sig, const struct sigaction *__restrict act, struct sigaction *__restrict oact) {
+	int errno, ret;
+	SYSCALL3(SYSCALL_SIGACTION, sig, act, oact);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+
+int sys_sigpending(sigset_t *set) {
+	int errno, ret;
+	SYSCALL1(SYSCALL_SIGPENDING, set);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
+int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restrict oset) {
+	int errno, ret;
+	SYSCALL3(SYSCALL_SIGPROCMASK, how, set, oset);
+
+	if(ret == -1) {
+		return errno;
+	}
+
+	return 0;
+}
+
 
 } // namespace mlibc
