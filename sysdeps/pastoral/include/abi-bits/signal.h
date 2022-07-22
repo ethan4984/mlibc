@@ -1,1 +1,1 @@
-../../../../abis/vinix/signal.h
+../../../../abis/pastoral/signal.h
