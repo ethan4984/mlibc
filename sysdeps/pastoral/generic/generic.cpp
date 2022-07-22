@@ -169,6 +169,16 @@ pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
 	return 0;
 }
 
+int sys_kill(int pid, int sig) {
+	int ret, errno;
+
+	SYSCALL2(SYSCALL_KILL, pid, sig);
+	if(ret == -1) 
+		return errno;
+
+	return ret;
+}
+
 int sys_setpgid(pid_t pid, pid_t pgid) {
 	int ret, errno;
 
