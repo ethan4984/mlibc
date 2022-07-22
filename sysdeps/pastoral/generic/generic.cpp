@@ -111,7 +111,11 @@
 #define SYSCALL_SIGACTION 43
 #define SYSCALL_SIGPENDING 44
 #define SYSCALL_SIGPROCMASK 45
-
+#define SYSCALL_KILL 46
+#define SYSCALL_SETPGID 47
+#define SYSCALL_GETPGID 48
+#define SYSCALL_SETSID 49
+#define SYSCALL_GETSID 50
 
 namespace mlibc {
 
@@ -133,11 +137,46 @@ void sys_exit(int status) {
 	SYSCALL1(SYSCALL_EXIT, status);
 }
 
+pid_t sys_getsid(pid_t pid, pid_t *sid) { 
+	int ret, errno;
+
+	SYSCALL0(SYSCALL_SETSID);
+	if(ret == -1)
+		return errno;
+
+	return ret;
+}
+
+pid_t sys_getsid(pid_t *sid) {
+	int ret, errno;
+
+	SYSCALL0(SYSCALL_GETSID);
+	if(ret == -1)
+		return errno;
+
+	return ret;
+}
+
 pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
-	mlibc::infoLogger() << "sys_getpgid() is unimplemented" << frg::endlog;
-	*pgid = 0;
+	int ret, errno;
+
+	SYSCALL1(SYSCALL_GETPGID, pid);
+	if(ret == -1)
+		return errno;
+
+	*pgid = ret;
 
 	return 0;
+}
+
+int sys_setpgid(pid_t pid, pid_t pgid) {
+	int ret, errno;
+
+	SYSCALL2(SYSCALL_SETPGID, pid, pgid);
+	if(ret == -1)
+		return errno;
+
+	return ret;
 }
 
 int sys_tcb_set(void *pointer) {
@@ -276,12 +315,15 @@ int sys_clock_get(int clock, time_t *secs, long *nanos) {
 
 int sys_gethostname(char *buffer, size_t bufsize) {
 	const char *hostname = "pastoral";
-	for (size_t i = 0; i < bufsize; i++) {
+
+	size_t i = 0;
+	for (; i < bufsize; i++) {
 		buffer[i] = hostname[i];
 		if (hostname[i] == 0)
 			break;
 	}
-	mlibc::infoLogger() << "mlibc: " << __func__ << " is a stub!\n" << frg::endlog;
+	buffer[i] = '\0';
+
 	return 0;
 }
 
