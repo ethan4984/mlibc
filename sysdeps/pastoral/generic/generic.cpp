@@ -141,24 +141,26 @@ void sys_exit(int status) {
 	SYSCALL1(SYSCALL_EXIT, status);
 }
 
-pid_t sys_getsid(pid_t pid, pid_t *sid) { 
-	int ret, errno;
-
-	SYSCALL0(SYSCALL_SETSID);
-	if(ret == -1)
-		return errno;
-
-	return ret;
-}
-
-pid_t sys_getsid(pid_t *sid) {
+pid_t sys_getsid(pid_t pid, pid_t *sid) {
 	int ret, errno;
 
 	SYSCALL0(SYSCALL_GETSID);
 	if(ret == -1)
 		return errno;
 
-	return ret;
+	*sid = ret;
+	return 0;
+}
+
+pid_t sys_setsid(pid_t *sid) {
+	int ret, errno;
+
+	SYSCALL0(SYSCALL_SETSID);
+	if(ret == -1)
+		return errno;
+
+	*sid = sys_getpid();
+	return 0;
 }
 
 pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
@@ -221,7 +223,7 @@ int sys_kill(int pid, int sig) {
 	int ret, errno;
 
 	SYSCALL2(SYSCALL_KILL, pid, sig);
-	if(ret == -1) 
+	if(ret == -1)
 		return errno;
 
 	return ret;
