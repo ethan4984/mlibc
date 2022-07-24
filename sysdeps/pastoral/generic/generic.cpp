@@ -116,6 +116,8 @@
 #define SYSCALL_GETPGID 48
 #define SYSCALL_SETSID 49
 #define SYSCALL_GETSID 50
+#define SYSCALL_PAUSE 51
+#define SYSCALL_SIGSUSPEND 52
 
 namespace mlibc {
 
@@ -167,6 +169,24 @@ pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
 	*pgid = ret;
 
 	return 0;
+}
+
+int sys_sigsuspend(const sigset_t *set) {
+	int ret, errno;
+
+	SYSCALL1(SYSCALL_GETPGID, set);
+	if(ret == -1)
+		return errno;
+
+	return 0;
+}
+
+int sys_pause() {
+	int ret, errno;
+
+	SYSCALL0(SYSCALL_PAUSE);
+
+	return EINTR;
 }
 
 int sys_kill(int pid, int sig) {
