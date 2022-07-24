@@ -51,7 +51,7 @@
 	asm volatile ("syscall"										\
 				  : "=a"(ret), "=d"(errno)						\
 				  : "a"(NUM), "D"(ARG0), "S"(ARG1), "d"(ARG2),	\
-				  	"r"(arg3), "r"(arg4)						\
+					"r"(arg3), "r"(arg4)						\
 				  : "rcx", "r11", "memory");
 
 #define SYSCALL6(NUM, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5) ({   \
@@ -118,6 +118,8 @@
 #define SYSCALL_GETSID 50
 #define SYSCALL_PAUSE 51
 #define SYSCALL_SIGSUSPEND 52
+#define SYSCALL_POLL 53
+#define SYSCALL_PPOLL 54
 
 namespace mlibc {
 
@@ -167,6 +169,32 @@ pid_t sys_getpgid(pid_t pid, pid_t *pgid) {
 		return errno;
 
 	*pgid = ret;
+
+	return 0;
+}
+
+int sys_poll(struct pollfd *fds, nfds_t cnt, int timeout, int *num_events) {
+	int ret, errno;
+
+	SYSCALL3(SYSCALL_POLL, fds, cnt, timeout);
+	if(ret == -1) {
+		return errno;
+	}
+
+	*num_events = ret;
+
+	return 0;
+}
+
+int sys_ppoll(struct pollfd *fds, nfds_t cnt, const struct timespec *timeout, const sigset_t *sigmask, int *num_events) {
+	int ret, errno;
+
+	SYSCALL4(SYSCALL_PPOLL, fds, cnt, timeout, sigmask);
+	if(ret == -1) {
+		return errno;
+	}
+
+	*num_events = ret;
 
 	return 0;
 }
