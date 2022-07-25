@@ -121,6 +121,11 @@
 #define SYSCALL_POLL 53
 #define SYSCALL_PPOLL 54
 
+#define TCGETS 0x5401
+#define TCSETS 0x5402
+#define TCSETSW 0x5303
+#define TCSETSF 0x5304
+
 namespace mlibc {
 
 void sys_libc_log(const char *message) {
@@ -452,7 +457,9 @@ int sys_pselect(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except
 }
 
 int sys_isatty(int fd) {
-	return 0;
+	// Checking if tcgetattr works is enough.
+	struct termios attr;
+	return sys_tcgetattr(fd, &attr) == 0 ? 1 : 0;
 }
 
 int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
@@ -712,5 +719,26 @@ int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restric
 	return 0;
 }
 
+int sys_tcgetattr(int fd, struct termios *attr) {
+	return sys_ioctl(fd, TCGETS, attr, NULL);
+}
+
+int sys_tcsetattr(int fd, int how, const struct termios *attr) {
+	int req;
+	switch(how) {
+		case TCSANOW:
+			req = TCSETS;
+			break;
+		case TCSADRAIN:
+			req = TCSETSW;
+			break;
+		case TCSAFLUSH:
+			req = TCSETSF;
+			break;
+		default:
+			return -EINVAL;
+	}
+	return sys_ioctl(fd, req, (void *) attr, NULL);
+}
 
 } // namespace mlibc
