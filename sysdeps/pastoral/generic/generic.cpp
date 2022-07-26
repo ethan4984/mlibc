@@ -459,7 +459,7 @@ int sys_pselect(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except
 int sys_isatty(int fd) {
 	// Checking if tcgetattr works is enough.
 	struct termios attr;
-	return sys_tcgetattr(fd, &attr) == 0 ? 1 : 0;
+	return sys_tcgetattr(fd, &attr);
 }
 
 int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
@@ -468,7 +468,9 @@ int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
 	SYSCALL3(SYSCALL_IOCTL, fd, request, arg);
 	if (ret == -1)
 		return errno;
-	*result = ret;
+	if(result) {
+		*result = ret;
+	}
 	return 0;
 }
 
@@ -720,9 +722,7 @@ int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restric
 }
 
 int sys_tcgetattr(int fd, struct termios *attr) {
-	int ret;
-	sys_ioctl(fd, TCGETS, attr, &ret);
-	return ret;
+	return sys_ioctl(fd, TCGETS, attr, NULL);
 }
 
 int sys_tcsetattr(int fd, int how, const struct termios *attr) {
@@ -740,9 +740,7 @@ int sys_tcsetattr(int fd, int how, const struct termios *attr) {
 		default:
 			return -EINVAL;
 	}
-	int ret;
-	sys_ioctl(fd, req, (void *) attr, &ret);
-	return ret;
+	return sys_ioctl(fd, req, (void *) attr, NULL);
 }
 
 } // namespace mlibc
