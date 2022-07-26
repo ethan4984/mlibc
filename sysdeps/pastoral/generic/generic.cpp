@@ -720,7 +720,9 @@ int sys_sigprocmask(int how, const sigset_t *__restrict set, sigset_t *__restric
 }
 
 int sys_tcgetattr(int fd, struct termios *attr) {
-	return sys_ioctl(fd, TCGETS, attr, NULL);
+	int ret;
+	sys_ioctl(fd, TCGETS, attr, &ret);
+	return ret;
 }
 
 int sys_tcsetattr(int fd, int how, const struct termios *attr) {
@@ -738,7 +740,9 @@ int sys_tcsetattr(int fd, int how, const struct termios *attr) {
 		default:
 			return -EINVAL;
 	}
-	return sys_ioctl(fd, req, (void *) attr, NULL);
+	int ret;
+	sys_ioctl(fd, req, (void *) attr, &ret);
+	return ret;
 }
 
 } // namespace mlibc
