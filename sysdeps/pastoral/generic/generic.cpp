@@ -469,6 +469,9 @@ int sys_stat(fsfd_target fsfdt, int fd, const char *path, int flags, struct stat
 
 int sys_pselect(int num_fds, fd_set *read_set, fd_set *write_set, fd_set *except_set,
 		const struct timespec *timeout, const sigset_t *sigmask, int *num_events) {
+	mlibc::infoLogger() << "mlibc: sys_pselect is a stub!" << frg::endlog;
+	return 0;
+
 	// Just pass the exact same stuff but in a ppoll format.
 	frg::vector<pollfd, MemoryAllocator> poll_data{getAllocator()};
 	for(int i = 0; i < num_fds; i++) {
