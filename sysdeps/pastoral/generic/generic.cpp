@@ -179,21 +179,19 @@ static constexpr size_t default_stacksize = 0x200000;
 
 int sys_prepare_stack(void **stack, void *entry, void *user_arg, void *tcb, size_t *stack_size, size_t *guard_size) {
 	(void)tcb;
-	if (!*stack_size)
-		*stack_size = default_stacksize;
+	if(*stack_size == 0) {
+		*stack_size == default_stacksize;
+	}
 
-	uintptr_t map;
-	if (*stack) {
-		map = reinterpret_cast<uintptr_t>(*stack);
+	void *map;
+	if(*stack) {
+		map = reinterpret_cast<void*>(*stack);
 		*guard_size = 0;
 	} else {
-		void *bruh;
-		sys_vm_map(nullptr, *stack_size + *guard_size,
-			PROT_NONE,
-			MAP_PRIVATE | MAP_ANONYMOUS, -1, 0, &bruh);
-		map = (uint64_t)bruh;
-		if (reinterpret_cast<void*>(map) == MAP_FAILED)
+		sys_vm_map(nullptr, *stack_size + *guard_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0, &map);	
+		if(map == MAP_FAILED) {
 			return EAGAIN;
+		}
 		map += *stack_size + *guard_size;
 	}
 
@@ -201,13 +199,27 @@ int sys_prepare_stack(void **stack, void *entry, void *user_arg, void *tcb, size
 	*--sp = reinterpret_cast<uintptr_t>(user_arg);
 	*--sp = reinterpret_cast<uintptr_t>(entry);
 	*stack = reinterpret_cast<void*>(sp);
+
 	return 0;
 }
 
-extern "C" int [[naked]] __mlibc_spawn_thread(int flags, void *stack, void *pid_out, void *child_tid, void *tcb) {
+struct clone_args {
+	uint64_t flags;
+	uint64_t pidfd;
+	uint64_t child_tid;
+	uint64_t parent_tid;
+	uint64_t exit_signal;
+	uint64_t stack;
+	uint64_t stack_size;
+	uint64_t tls;
+	uint64_t set_tid;
+	uint64_t set_tid_size;
+	uint64_t cgroup;
+};
+
+extern "C" int [[naked]] __mlibc_spawn_thread(void *args, size_t size) {
 	asm volatile (
-		"mov %rcx, %r10\n\t"
-		"mov $56, %rax\n\t"
+		"mov $65, %rax\n\t"
 		"syscall\n\t"
 		"test %eax, %eax\n\t"
 		"jnz 1f\n\t"
@@ -227,11 +239,24 @@ int sys_clone(void *tcb, pid_t *pid_out, void *stack) {
 		| CLONE_THREAD | CLONE_SYSVSEM | CLONE_SETTLS | CLONE_SETTLS
 		| CLONE_PARENT_SETTID;
 
+	struct clone_args clone_args = {
+		.flags = flags,
+		.pidfd = 0,
+		.child_tid = 0,
+		.parent_tid = reinterpret_cast<uint64_t>(pid_out),
+		.exit_signal = 0,
+		.stack = reinterpret_cast<uint64_t>(stack),
+		.stack_size = default_stacksize,
+		.tls = reinterpret_cast<uint64_t>(tcb),
+		.set_tid = 0,
+		.set_tid_size = 0,
+		.cgroup = 0
+	};
 
-	auto ret = __mlibc_spawn_thread(flags, stack, pid_out, NULL, tcb);
-	
-	if(ret < 0)
+	auto ret = __mlibc_spawn_thread(reinterpret_cast<void*>(&clone_args), sizeof(struct clone_args));
+	if(ret < 0) {
 		return ret;
+	}
 
 	return 0;
 }
