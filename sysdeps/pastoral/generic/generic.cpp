@@ -150,6 +150,9 @@ extern "C" void __mlibc_enter_thread(void *entry, void *user_arg) {
 		mlibc::sys_futex_wait(&tcb->tid, 0, nullptr);
 
 	void *(*func)(void *) = reinterpret_cast<void *(*)(void *)>(entry);
+
+	//mlibc::infoLogger() << "mlibc: pthread: func: " << entry << frg::endlog;
+	
 	auto result = func(user_arg);
 
 	tcb->returnValue = result;
@@ -180,24 +183,28 @@ static constexpr size_t default_stacksize = 0x200000;
 int sys_prepare_stack(void **stack, void *entry, void *user_arg, void *tcb, size_t *stack_size, size_t *guard_size) {
 	(void)tcb;
 	if(*stack_size == 0) {
-		*stack_size == default_stacksize;
+		*stack_size = default_stacksize;
 	}
 
-	void *map;
+	uintptr_t map;
 	if(*stack) {
-		map = reinterpret_cast<void*>(*stack);
+		map = reinterpret_cast<uintptr_t>(*stack);
 		*guard_size = 0;
 	} else {
-		sys_vm_map(nullptr, *stack_size + *guard_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0, &map);	
-		if(map == MAP_FAILED) {
+		void *sp;
+
+		sys_vm_map(nullptr, *stack_size + *guard_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0, &sp);	
+		if(sp == MAP_FAILED) {
 			return EAGAIN;
 		}
+
+		map = reinterpret_cast<uintptr_t>(sp);
 		map += *stack_size + *guard_size;
 	}
 
-	auto sp = reinterpret_cast<uintptr_t*>(map);
-	*--sp = reinterpret_cast<uintptr_t>(user_arg);
-	*--sp = reinterpret_cast<uintptr_t>(entry);
+	auto sp = reinterpret_cast<uint64_t*>(map);
+	*--sp = reinterpret_cast<uint64_t>(user_arg);
+	*--sp = reinterpret_cast<uint64_t>(entry);
 	*stack = reinterpret_cast<void*>(sp);
 
 	return 0;
@@ -259,6 +266,11 @@ int sys_clone(void *tcb, pid_t *pid_out, void *stack) {
 	}
 
 	return 0;
+}
+
+void sys_thread_exit() {
+	sys_exit(0);
+	__builtin_trap();	
 }
 
 int sys_socket(int family, int type, int protocol, int *fd) {
@@ -362,6 +374,9 @@ int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
 
 	return 0;
 }
+
+// why is this failing
+// vim 
 
 int sys_futex_wake(int *pointer) {
 	int ret, errno;
