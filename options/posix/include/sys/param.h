@@ -5,6 +5,7 @@
 #include <endian.h>
 #include <limits.h>
 
+#define NBBY CHAR_BIT
 #define NGROUPS NGROUPS_MAX
 
 // Report the same value as Linux here.
@@ -21,6 +22,8 @@ extern "C" {
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #undef MAX
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
+
+#define howmany(x, y)  (((x) + ((y) - 1)) / (y))
 
 #ifdef __cplusplus
 }

@@ -12,6 +12,7 @@ extern "C" {
 #include <bits/sigset_t.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <mlibc-config.h>
 
 #define FPE_INTDIV      1       /* integer divide by zero */
 #define FPE_INTOVF      2       /* integer overflow */
@@ -87,10 +88,16 @@ int sigaltstack(const stack_t *__restrict ss, stack_t *__restrict oss);
 int kill(pid_t, int);
 int killpg(int, int);
 
-int sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout);
-
-int sigwait(const sigset_t *set, int *sig);
+int sigtimedwait(const sigset_t *__restrict set, siginfo_t *__restrict info, const struct timespec *__restrict timeout);
+int sigwait(const sigset_t *__restrict set, int *__restrict sig);
 int sigwaitinfo(const sigset_t *__restrict set, siginfo_t *__restrict info);
+
+// Glibc extension
+#if __MLIBC_GLIBC_OPTION
+int sigisemptyset(const sigset_t *set);
+#endif // __MLIBC_GLIBC_OPTION
+
+int sigqueue(pid_t pid, int sig, const union sigval value);
 
 #ifdef __cplusplus
 }

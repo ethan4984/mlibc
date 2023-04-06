@@ -9,10 +9,12 @@
 #include <unistd.h>
 // for sched_yield()
 #include <sched.h>
+#include <stdio.h>
 // for getrusage()
 #include <sys/resource.h>
 // for waitpid()
 #include <sys/wait.h>
+#include <pthread.h>
 
 #include <bits/ensure.h>
 #include <mlibc/allocator.hpp>
@@ -59,38 +61,27 @@ int sys_waitpid(pid_t pid, int *status, int flags, struct rusage *ru, pid_t *ret
 	}
 
 	SignalGuard sguard;
-	HelAction actions[3];
-	globalQueue.trim();
 
 	managarm::posix::CntRequest<MemoryAllocator> req(getSysdepsAllocator());
 	req.set_request_type(managarm::posix::CntReqType::WAIT);
 	req.set_pid(pid);
 	req.set_flags(flags);
 
-	frg::string<MemoryAllocator> ser(getSysdepsAllocator());
-	req.SerializeToString(&ser);
-	actions[0].type = kHelActionOffer;
-	actions[0].flags = kHelItemAncillary;
-	actions[1].type = kHelActionSendFromBuffer;
-	actions[1].flags = kHelItemChain;
-	actions[1].buffer = ser.data();
-	actions[1].length = ser.size();
-	actions[2].type = kHelActionRecvInline;
-	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(getPosixLane(), actions, 3,
-			globalQueue.getQueue(), 0, 0));
+	auto [offer, send_head, recv_resp] =
+		exchangeMsgsSync(
+			getPosixLane(),
+			helix_ng::offer(
+				helix_ng::sendBragiHeadOnly(req, getSysdepsAllocator()),
+				helix_ng::recvInline()
+			)
+		);
 
-	auto element = globalQueue.dequeueSingle();
-	auto offer = parseHandle(element);
-	auto send_req = parseSimple(element);
-	auto recv_resp = parseInline(element);
-
-	HEL_CHECK(offer->error);
-	HEL_CHECK(send_req->error);
-	HEL_CHECK(recv_resp->error);
+	HEL_CHECK(offer.error());
+	HEL_CHECK(send_head.error());
+	HEL_CHECK(recv_resp.error());
 
 	managarm::posix::SvrResponse<MemoryAllocator> resp(getSysdepsAllocator());
-	resp.ParseFromArray(recv_resp->data, recv_resp->length);
+	resp.ParseFromArray(recv_resp.data(), recv_resp.length());
 	if(resp.error() == managarm::posix::Errors::ILLEGAL_ARGUMENTS) {
 		return EINVAL;
 	}
@@ -415,35 +406,24 @@ pid_t sys_gettid() {
 
 pid_t sys_getpid() {
 	SignalGuard sguard;
-	HelAction actions[3];
-	globalQueue.trim();
 
 	managarm::posix::GetPidRequest<MemoryAllocator> req(getSysdepsAllocator());
 
-	frg::string<MemoryAllocator> ser(getSysdepsAllocator());
-	req.SerializeToString(&ser);
-	actions[0].type = kHelActionOffer;
-	actions[0].flags = kHelItemAncillary;
-	actions[1].type = kHelActionSendFromBuffer;
-	actions[1].flags = kHelItemChain;
-	actions[1].buffer = ser.data();
-	actions[1].length = ser.size();
-	actions[2].type = kHelActionRecvInline;
-	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(getPosixLane(), actions, 3,
-			globalQueue.getQueue(), 0, 0));
+	auto [offer, send_head, recv_resp] =
+		exchangeMsgsSync(
+			getPosixLane(),
+			helix_ng::offer(
+				helix_ng::sendBragiHeadOnly(req, getSysdepsAllocator()),
+				helix_ng::recvInline()
+			)
+		);
 
-	auto element = globalQueue.dequeueSingle();
-	auto offer = parseHandle(element);
-	auto send_req = parseSimple(element);
-	auto recv_resp = parseInline(element);
-
-	HEL_CHECK(offer->error);
-	HEL_CHECK(send_req->error);
-	HEL_CHECK(recv_resp->error);
+	HEL_CHECK(offer.error());
+	HEL_CHECK(send_head.error());
+	HEL_CHECK(recv_resp.error());
 
 	managarm::posix::SvrResponse<MemoryAllocator> resp(getSysdepsAllocator());
-	resp.ParseFromArray(recv_resp->data, recv_resp->length);
+	resp.ParseFromArray(recv_resp.data(), recv_resp.length());
 	__ensure(resp.error() == managarm::posix::Errors::SUCCESS);
 	return resp.pid();
 }
@@ -573,41 +553,58 @@ int sys_getrusage(int scope, struct rusage *usage) {
 	memset(usage, 0, sizeof(struct rusage));
 
 	SignalGuard sguard;
-	HelAction actions[3];
-	globalQueue.trim();
 
 	managarm::posix::CntRequest<MemoryAllocator> req(getSysdepsAllocator());
 	req.set_request_type(managarm::posix::CntReqType::GET_RESOURCE_USAGE);
 	req.set_mode(scope);
 
-	frg::string<MemoryAllocator> ser(getSysdepsAllocator());
-	req.SerializeToString(&ser);
-	actions[0].type = kHelActionOffer;
-	actions[0].flags = kHelItemAncillary;
-	actions[1].type = kHelActionSendFromBuffer;
-	actions[1].flags = kHelItemChain;
-	actions[1].buffer = ser.data();
-	actions[1].length = ser.size();
-	actions[2].type = kHelActionRecvInline;
-	actions[2].flags = 0;
-	HEL_CHECK(helSubmitAsync(getPosixLane(), actions, 3,
-			globalQueue.getQueue(), 0, 0));
+	auto [offer, send_head, recv_resp] =
+		exchangeMsgsSync(
+			getPosixLane(),
+			helix_ng::offer(
+				helix_ng::sendBragiHeadOnly(req, getSysdepsAllocator()),
+				helix_ng::recvInline()
+			)
+		);
 
-	auto element = globalQueue.dequeueSingle();
-	auto offer = parseHandle(element);
-	auto send_req = parseSimple(element);
-	auto recv_resp = parseInline(element);
-
-	HEL_CHECK(offer->error);
-	HEL_CHECK(send_req->error);
-	HEL_CHECK(recv_resp->error);
+	HEL_CHECK(offer.error());
+	HEL_CHECK(send_head.error());
+	HEL_CHECK(recv_resp.error());
 
 	managarm::posix::SvrResponse<MemoryAllocator> resp(getSysdepsAllocator());
-	resp.ParseFromArray(recv_resp->data, recv_resp->length);
+	resp.ParseFromArray(recv_resp.data(), recv_resp.length());
 	__ensure(resp.error() == managarm::posix::Errors::SUCCESS);
 
 	usage->ru_utime.tv_sec = resp.ru_user_time() / 1'000'000'000;
 	usage->ru_utime.tv_usec = (resp.ru_user_time() % 1'000'000'000) / 1'000;
+
+	return 0;
+}
+
+int sys_getschedparam(void *tcb, int *policy, struct sched_param *param) {
+	if(tcb != mlibc::get_current_tcb()) {
+		return ESRCH;
+	}
+
+	*policy = SCHED_OTHER;
+	int prio = 0;
+	// TODO(no92): use helGetPriority(kHelThisThread) here
+	mlibc::infoLogger() << "\e[31mlibc: sys_getschedparam always returns priority 0\e[39m" << frg::endlog;
+	param->sched_priority = prio;
+
+	return 0;
+}
+
+int sys_setschedparam(void *tcb, int policy, const struct sched_param *param) {
+	if(tcb != mlibc::get_current_tcb()) {
+		return ESRCH;
+	}
+
+	if(policy != SCHED_OTHER) {
+		return EINVAL;
+	}
+
+	HEL_CHECK(helSetPriority(kHelThisThread, param->sched_priority));
 
 	return 0;
 }
@@ -640,6 +637,70 @@ void sys_thread_exit() {
 	// This implementation is inherently signal-safe.
 	HEL_CHECK(helSyscall1(kHelCallSuper + posix::superExit, 0));
 	__builtin_trap();
+}
+
+int sys_thread_setname(void *tcb, const char *name) {
+	if(strlen(name) > 15) {
+		return ERANGE;
+	}
+
+	auto t = reinterpret_cast<Tcb *>(tcb);
+	char *path;
+	int cs = 0;
+
+	if(asprintf(&path, "/proc/self/task/%d/comm", t->tid) < 0) {
+		return ENOMEM;
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+
+	int fd;
+	if(int e = sys_open(path, O_WRONLY, 0, &fd); e) {
+		return e;
+	}
+
+	if(int e = sys_write(fd, name, strlen(name) + 1, NULL)) {
+		return e;
+	}
+
+	sys_close(fd);
+
+	pthread_setcancelstate(cs, 0);
+
+	return 0;
+}
+
+int sys_thread_getname(void *tcb, char *name, size_t size) {
+	auto t = reinterpret_cast<Tcb *>(tcb);
+	char *path;
+	int cs = 0;
+	ssize_t real_size = 0;
+
+	if(asprintf(&path, "/proc/self/task/%d/comm", t->tid) < 0) {
+		return ENOMEM;
+	}
+
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+
+	int fd;
+	if(int e = sys_open(path, O_RDONLY | O_CLOEXEC, 0, &fd); e) {
+		return e;
+	}
+
+	if(int e = sys_read(fd, name, size, &real_size)) {
+		return e;
+	}
+
+	name[real_size - 1] = 0;
+	sys_close(fd);
+
+	pthread_setcancelstate(cs, 0);
+
+	if(static_cast<ssize_t>(size) <= real_size) {
+		return ERANGE;
+	}
+
+	return 0;
 }
 
 

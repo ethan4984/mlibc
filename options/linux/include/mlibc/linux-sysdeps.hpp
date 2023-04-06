@@ -40,8 +40,34 @@ int sys_write(int fd, const void *buf, size_t count, ssize_t *bytes_written);
 [[gnu::weak]] int sys_init_module(void *module, unsigned long length, const char *args);
 [[gnu::weak]] int sys_delete_module(const char *name, unsigned flags);
 [[gnu::weak]] int sys_klogctl(int type, char *bufp, int len, int *out);
+[[gnu::weak]] int sys_getcpu(int *cpu);
 
 [[gnu::weak]] int sys_sysinfo(struct sysinfo *info);
+
+[[gnu::weak]] int sys_setxattr(const char *path, const char *name,
+	const void *val, size_t size, int flags);
+[[gnu::weak]] int sys_lsetxattr(const char *path, const char *name,
+	const void *val, size_t size, int flags);
+[[gnu::weak]] int sys_fsetxattr(int fd, const char *name, const void *val,
+	size_t size, int flags);
+
+[[gnu::weak]] int sys_getxattr(const char *path, const char *name,
+	void *val, size_t size, ssize_t *nread);
+[[gnu::weak]] int sys_lgetxattr(const char *path, const char *name,
+	void *val, size_t size, ssize_t *nread);
+[[gnu::weak]] int sys_fgetxattr(int fd, const char *name, void *val,
+	size_t size, ssize_t *nread);
+
+[[gnu::weak]] int sys_listxattr(const char *path, char *list, size_t size,
+	ssize_t *nread);
+[[gnu::weak]] int sys_llistxattr(const char *path, char *list, size_t size,
+	ssize_t *nread);
+[[gnu::weak]] int sys_flistxattr(int fd, char *list, size_t size,
+	ssize_t *nread);
+
+[[gnu::weak]] int sys_removexattr(const char *path, const char *name);
+[[gnu::weak]] int sys_lremovexattr(const char *path, const char *name);
+[[gnu::weak]] int sys_fremovexattr(int fd, const char *name);
 
 } // namespace mlibc
 

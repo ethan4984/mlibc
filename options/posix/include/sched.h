@@ -53,13 +53,14 @@ struct sched_param {
 	int sched_priority;
 };
 
-int sched_yield();
+int sched_yield(void);
 
 struct __mlibc_cpu_set {
 	unsigned long __bits[128/sizeof(long)];
 };
 typedef struct __mlibc_cpu_set cpu_set_t;
 
+int sched_getscheduler(pid_t pid);
 int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
 
 int sched_get_priority_max(int policy);
@@ -68,10 +69,19 @@ int sched_get_priority_min(int policy);
 int unshare(int flags);
 
 int __mlibc_cpu_isset(int cpu, cpu_set_t *set);
-int __mlibc_cpu_count(cpu_set_t *set);
+int __mlibc_cpu_count(const cpu_set_t *set);
+
+int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
+int sched_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *mask);
+
+int sched_getparam(pid_t pid, struct sched_param *param);
 
 // Linux extension
 int clone(int (*)(void *), void *, int, void *, ...);
+
+#if __MLIBC_LINUX_OPTION
+#include <bits/linux/linux_sched.h>
+#endif
 
 #ifdef __cplusplus
 }

@@ -31,12 +31,12 @@ build_tests_host_libc = get_option('build_tests_host_libc')
 disable_ansi_option = get_option('disable_ansi_option')
 disable_posix_option = get_option('disable_posix_option')
 disable_linux_option = get_option('disable_linux_option')
-disable_linux_headers = get_option('disable_linux_headers_option')
 disable_iconv_option = get_option('disable_iconv_option')
 disable_intl_option = get_option('disable_intl_option')
 disable_glibc_option = get_option('disable_glibc_option')
 disable_crypt_option = get_option('disable_crypt_option')
 disable_bsd_option = get_option('disable_bsd_option')
+disable_libgcc_dependency = get_option('disable_libgcc_dependency')
 internal_conf = configuration_data()
 mlibc_conf = configuration_data()
 
@@ -58,6 +58,7 @@ if not headers_only
 
 	add_project_arguments('-Wno-unused-function', '-D__MLIBC_BUILDING_MLIBC', language: ['c', 'cpp'])
 	add_project_arguments('-nostdinc', '-fno-builtin', language: ['c', 'cpp'])
+	add_project_arguments('-Werror=misleading-indentation', language: ['c', 'cpp'])
 	add_project_arguments('-fno-rtti', '-fno-exceptions', language: 'cpp')
 	add_project_link_arguments('-nostdlib', language: ['c', 'cpp'])
 
@@ -92,40 +93,58 @@ if not headers_only
 endif
 
 internal_conf.set_quoted('MLIBC_SYSTEM_NAME', host_machine.system())
-internal_conf.set('MLIBC_MAP_DSO_SEGMENTS', false)
-internal_conf.set('MLIBC_MAP_FILE_WINDOWS', false)
-internal_conf.set('MLIBC_DEBUG_ALLOCATOR', get_option('debug_allocator'))
+internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', false)
+internal_conf.set10('MLIBC_MMAP_ALLOCATE_DSO', false)
+internal_conf.set10('MLIBC_MAP_FILE_WINDOWS', false)
+internal_conf.set10('MLIBC_DEBUG_ALLOCATOR', get_option('debug_allocator'))
 
 #----------------------------------------------------------------------------------------
 # Configuration based on sysdeps.
 #----------------------------------------------------------------------------------------
 
 # Process sysdeps first, as sysdeps might want to disable unsupported options.
+provides_bits_syscall_h = false
 if host_machine.system() == 'linux'
-	disable_linux_headers = true
+	provides_bits_syscall_h = true
 	rtdl_include_dirs += include_directories('sysdeps/linux/include')
 	libc_include_dirs += include_directories('sysdeps/linux/include')
+
+	if get_option('linux_kernel_headers') == ''
+		error('linux_kernel_headers is not set')
+	endif
+
+	if not import('fs').is_dir(get_option('linux_kernel_headers'))
+		error('linux_kernel_headers is not set to a valid path')
+	endif
+
+	rtdl_include_dirs += include_directories(get_option('linux_kernel_headers'))
+	libc_include_dirs += include_directories(get_option('linux_kernel_headers'))
+
+	internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', true)
+	internal_conf.set10('MLIBC_MMAP_ALLOCATE_DSO', true)
 	subdir('sysdeps/linux')
 elif host_machine.system() == 'aero'
 	rtdl_include_dirs += include_directories('sysdeps/aero/include')
 	libc_include_dirs += include_directories('sysdeps/aero/include')
+	internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', true)
+	internal_conf.set10('MLIBC_MAP_FILE_WINDOWS', true)
 	subdir('sysdeps/aero')
 elif host_machine.system() == 'managarm'
 	# TODO: Adopt the include_directories() commands from the managarm meson.build.
 	rtdl_include_dirs += include_directories('sysdeps/managarm/include')
 	libc_include_dirs += include_directories('sysdeps/managarm/include')
-	internal_conf.set('MLIBC_MAP_DSO_SEGMENTS', true)
-	internal_conf.set('MLIBC_MAP_FILE_WINDOWS', true)
+	internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', true)
+	internal_conf.set10('MLIBC_MAP_FILE_WINDOWS', true)
 	subdir('sysdeps/managarm')
 elif host_machine.system() == 'ironclad'
 	# disable_linux_option = true
 	rtdl_include_dirs += include_directories('sysdeps/ironclad/include')
 	libc_include_dirs += include_directories('sysdeps/ironclad/include')
 	subdir('sysdeps/ironclad')
-elif host_machine.system() == 'vinix'
-	rtdl_include_dirs += include_directories('sysdeps/vinix/include')
-	libc_include_dirs += include_directories('sysdeps/vinix/include')
-	subdir('sysdeps/vinix')
+elif host_machine.system() == 'lyre'
+	rtdl_include_dirs += include_directories('sysdeps/lyre/include')
+	libc_include_dirs += include_directories('sysdeps/lyre/include')
+	subdir('sysdeps/lyre')
 elif host_machine.system() == 'lemon'
 	rtdl_include_dirs += include_directories('sysdeps/lemon/include')
 	libc_include_dirs += include_directories('sysdeps/lemon/include')
@@ -147,14 +166,15 @@ endif
 # Configuration based on enabled options.
 #----------------------------------------------------------------------------------------
 
-mlibc_conf.set('__MLIBC_ANSI_OPTION', not disable_ansi_option)
-mlibc_conf.set('__MLIBC_POSIX_OPTION', not disable_posix_option)
-mlibc_conf.set('__MLIBC_LINUX_OPTION', not disable_linux_option)
-mlibc_conf.set('__MLIBC_INTL_OPTION', not disable_intl_option)
-mlibc_conf.set('__MLIBC_ICONV_OPTION', not disable_iconv_option)
-mlibc_conf.set('__MLIBC_GLIBC_OPTION', not disable_glibc_option)
-mlibc_conf.set('__MLIBC_CRYPT_OPTION', not disable_crypt_option)
-mlibc_conf.set('__MLIBC_BSD_OPTION', not disable_bsd_option)
+mlibc_conf.set10('__MLIBC_ANSI_OPTION', not disable_ansi_option)
+mlibc_conf.set10('__MLIBC_POSIX_OPTION', not disable_posix_option)
+mlibc_conf.set10('__MLIBC_LINUX_OPTION', not disable_linux_option)
+mlibc_conf.set10('__MLIBC_INTL_OPTION', not disable_intl_option)
+mlibc_conf.set10('__MLIBC_ICONV_OPTION', not disable_iconv_option)
+mlibc_conf.set10('__MLIBC_GLIBC_OPTION', not disable_glibc_option)
+mlibc_conf.set10('__MLIBC_CRYPT_OPTION', not disable_crypt_option)
+mlibc_conf.set10('__MLIBC_BSD_OPTION', not disable_bsd_option)
+mlibc_conf.set10('__MLIBC_SYSDEP_HAS_BITS_SYSCALL_H', provides_bits_syscall_h)
 
 if not disable_ansi_option
 	rtdl_include_dirs += include_directories('options/ansi/include')
@@ -176,8 +196,18 @@ if not disable_intl_option
 endif
 
 if not disable_linux_option
+	if get_option('linux_kernel_headers') == ''
+		error('linux_kernel_headers is not set')
+	endif
+
+	if not import('fs').is_dir(get_option('linux_kernel_headers'))
+		error('linux_kernel_headers is not set to a valid path')
+	endif
+
 	rtdl_include_dirs += include_directories('options/linux/include')
 	libc_include_dirs += include_directories('options/linux/include')
+	rtdl_include_dirs += include_directories(get_option('linux_kernel_headers'))
+	libc_include_dirs += include_directories(get_option('linux_kernel_headers'))
 endif
 
 if not disable_glibc_option
@@ -190,11 +220,10 @@ if not disable_crypt_option
 endif
 
 if not disable_bsd_option
+	rtdl_include_dirs += include_directories('options/bsd/include')
 	libc_include_dirs += include_directories('options/bsd/include')
 endif
 
-rtdl_include_dirs += include_directories('options/linux-headers/include')
-libc_include_dirs += include_directories('options/linux-headers/include')
 rtdl_include_dirs += include_directories('options/elf/include')
 libc_include_dirs += include_directories('options/elf/include')
 libc_include_dirs += include_directories('.')
@@ -230,6 +259,7 @@ internal_sources = [
 	'options/internal/gcc/initfini.cpp',
 	'options/internal/gcc-extra/cxxabi.cpp',
 	'options/internal' / host_machine.cpu_family() / 'setjmp.S',
+	'options/internal' / host_machine.cpu_family() / 'fenv.S',
 ]
 
 internal_dso_sources = [
@@ -256,6 +286,7 @@ if not no_headers
 		'options/internal/include/bits/ssize_t.h',
 		'options/internal/include/bits/sigset_t.h',
 		'options/internal/include/bits/inline-definition.h',
+		'options/internal/include/bits/ether_addr.h',
 		subdir: 'bits'
 	)
 endif
@@ -283,7 +314,6 @@ subdir('options/posix')
 subdir('options/lsb')
 subdir('options/glibc')
 subdir('options/linux')
-subdir('options/linux-headers')
 subdir('options/iconv')
 subdir('options/intl')
 subdir('options/crypt')
@@ -292,8 +322,7 @@ subdir('options/bsd')
 rtlib_deps = []
 
 if not headers_only
-	if host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'riscv64'
-		# Some architectures require us to link with libgcc or compiler_rt
+	if not disable_libgcc_dependency
 		libgcc = meson.get_compiler('c').find_library('gcc', required: false)
 
 		compiler_rt_name = 'libclang_rt.builtins-' + host_machine.cpu_family()

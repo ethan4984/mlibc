@@ -108,11 +108,15 @@ int wctomb(char *mb_chr, wchar_t wc);
 size_t mbstowcs(wchar_t *__restrict wc_string, const char *__restrict mb_string, size_t max_size);
 size_t wcstombs(char *mb_string, const wchar_t *__restrict wc_string, size_t max_size);
 
+#if __MLIBC_GLIBC_OPTION
+typedef int (*comparison_fn_t) (const void *, const void *);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 #	include <bits/posix/posix_stdlib.h>
 #endif
 

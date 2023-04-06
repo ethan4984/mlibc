@@ -14,7 +14,7 @@
 #include <abi-bits/auxv.h>
 #include "linker.hpp"
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 #include <dlfcn.h>
 #endif
 
@@ -416,7 +416,7 @@ const mlibc::RtdlConfig &__dlapi_get_config() {
 	return rtdlConfig;
 }
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 
 extern "C" [[ gnu::visibility("default") ]]
 void *__dlapi_open(const char *file, int flags, void *returnAddress) {
@@ -442,6 +442,9 @@ void *__dlapi_open(const char *file, int flags, void *returnAddress) {
 			globalScope->appendObject(object);
 		}
 	} else {
+		bool isGlobal = flags & RTLD_GLOBAL;
+		Scope *newScope = isGlobal ? globalScope.get() : nullptr;
+
 		if (frg::string_view{file}.find_first('/') == size_t(-1)) {
 			// In order to know which RUNPATH / RPATH to process, we must find the calling object.
 			SharedObject *origin = initialRepository->findCaller(returnAddress);
@@ -450,9 +453,9 @@ void *__dlapi_open(const char *file, int flags, void *returnAddress) {
 					<< "(ra = " << returnAddress << ")" << frg::endlog;
 			}
 
-			object = initialRepository->requestObjectWithName(file, origin, nullptr, !(flags & RTLD_GLOBAL), rts);
+			object = initialRepository->requestObjectWithName(file, origin, newScope, !isGlobal, rts);
 		} else {
-			object = initialRepository->requestObjectAtPath(file, nullptr, !(flags & RTLD_GLOBAL), rts);
+			object = initialRepository->requestObjectAtPath(file, newScope, !isGlobal, rts);
 		}
 
 		if(!object) {
@@ -460,7 +463,7 @@ void *__dlapi_open(const char *file, int flags, void *returnAddress) {
 			return nullptr;
 		}
 
-		Loader linker{(flags & RTLD_GLOBAL) ? globalScope.get() : object->localScope, nullptr, false, rts};
+		Loader linker{object->localScope, nullptr, false, rts};
 		linker.linkObjects(object);
 		linker.initObjects();
 	}
@@ -667,7 +670,7 @@ int __dlapi_iterate_phdr(int (*callback)(struct dl_phdr_info *, size_t, void*), 
 
 extern "C" [[ gnu::visibility("default") ]]
 void __dlapi_enter(uintptr_t *entry_stack) {
-#ifdef MLIBC_STATIC_BUILD
+#if MLIBC_STATIC_BUILD
 	interpreterMain(entry_stack);
 #else
 	(void)entry_stack;

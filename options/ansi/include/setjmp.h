@@ -12,7 +12,7 @@ extern "C" {
 
 // [C11/7.13] Non-local jumps
 
-typedef struct {
+typedef struct __jmp_buf {
 	struct __mlibc_jmpbuf_register_state reg_state;
 } jmp_buf[1];
 
@@ -27,7 +27,7 @@ typedef struct {
 	sigset_t sigset;
 } sigjmp_buf[1];
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 __attribute__ (( returns_twice )) int sigsetjmp(sigjmp_buf buffer, int savesigs);
 __attribute__ (( noreturn )) void siglongjmp(sigjmp_buf buffer, int value);
 #endif // __MLIBC_POSIX_OPTION

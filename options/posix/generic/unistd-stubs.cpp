@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <limits.h>
 #include <termios.h>
@@ -13,6 +14,7 @@
 #include <mlibc/arch-defs.hpp>
 #include <mlibc/debug.hpp>
 #include <mlibc/posix-sysdeps.hpp>
+#include <mlibc/bsd-sysdeps.hpp>
 #include <mlibc/thread.hpp>
 
 unsigned int alarm(unsigned int seconds) {
@@ -596,8 +598,8 @@ int setpgid(pid_t pid, pid_t pgid) {
 	return 0;
 }
 
-pid_t setpgrp(pid_t pid, pid_t pgid) {
-	return setpgid(pid, pgid);
+pid_t setpgrp(void) {
+	return setpgid(0, 0);
 }
 
 int setregid(gid_t rgid, gid_t egid) {
@@ -683,9 +685,13 @@ unsigned long sysconf(int number) {
 		case _SC_PAGE_SIZE:
 			return mlibc::page_size;
 		case _SC_OPEN_MAX:
-			// TODO: actually return a proper value for _SC_OPEN_MAX
-			mlibc::infoLogger() << "\e[31mmlibc: sysconf(_SC_OPEN_MAX) returns arbitrary value 256\e[39m" << frg::endlog;
-			return 256;
+			struct rlimit ru;
+			if (getrlimit(RLIMIT_NOFILE, &ru) < 0) {
+				mlibc::infoLogger() << "\e[31mmlibc: sysconf(_SC_OPEN_MAX) returns arbitrary value 256\e[39m" << frg::endlog;
+				return 256;
+			} else {
+				return (ru.rlim_cur == RLIM_INFINITY) ? -1 : ru.rlim_cur;
+			}
 		case _SC_PHYS_PAGES:
 			// TODO: actually return a proper value for _SC_PHYS_PAGES
 			mlibc::infoLogger() << "\e[31mmlibc: sysconf(_SC_PHYS_PAGES) returns arbitrary value 1024\e[39m" << frg::endlog;
@@ -717,11 +723,11 @@ unsigned long sysconf(int number) {
 			// Linux defines it as 2048.
 			return 2048;
 		case _SC_XOPEN_CRYPT:
-#ifdef __MLIBC_CRYPT_OPTION
+#if __MLIBC_CRYPT_OPTION
 			return _XOPEN_CRYPT;
 #else
 			return -1;
-#endif
+#endif /* __MLIBC_CRYPT_OPTION */
 		case _SC_NPROCESSORS_CONF:
 			// TODO: actually return a proper value for _SC_NPROCESSORS_CONF
 			mlibc::infoLogger() << "\e[31mmlibc: sysconf(_SC_NPROCESSORS_CONF) unconditionally returns 1\e[39m" << frg::endlog;
@@ -1160,9 +1166,26 @@ int getresgid(gid_t *, gid_t *, gid_t *) {
 	__builtin_unreachable();
 }
 
-#ifdef __MLIBC_CRYPT_OPTION
+#if __MLIBC_CRYPT_OPTION
 void encrypt(char[64], int) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
+}
+#endif
+
+#if __MLIBC_BSD_OPTION
+void *sbrk(intptr_t increment) {
+	if(increment) {
+		errno = ENOMEM;
+		return (void *)-1;
+	}
+
+	MLIBC_CHECK_OR_ENOSYS(mlibc::sys_brk, (void *)-1);
+	void *out;
+	if(int e = mlibc::sys_brk(&out); e) {
+		errno = e;
+		return (void *)-1;
+	}
+	return out;
 }
 #endif

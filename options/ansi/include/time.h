@@ -23,6 +23,8 @@
 #define CLOCK_REALTIME_COARSE 5
 #define CLOCK_MONOTONIC_COARSE 6
 #define CLOCK_BOOTTIME 7
+#define CLOCK_REALTIME_ALARM 8
+#define CLOCK_BOOTTIME_ALARM 9
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,7 +74,7 @@ void tzset(void);
 
 // POSIX extensions.
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 #	include <bits/posix/posix_time.h>
 #	include <bits/posix/timer_t.h>
 #endif // __MLIBC_POSIX_OPTION
@@ -100,10 +102,10 @@ struct tm *localtime_r(const time_t *, struct tm *);
 char *asctime_r(const struct tm *tm, char *buf);
 char *ctime_r(const time_t *, char *);
 
-#ifdef __MLIBC_POSIX_OPTION
+#if __MLIBC_POSIX_OPTION
 char *strptime(const char *__restrict, const char *__restrict,
 		struct tm *__restrict);
-#endif
+#endif /* __MLIBC_POSIX_OPTION */
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,9 @@
 #include <internal-config.h>
 #include "linker.hpp"
 
+#if !MLIBC_MMAP_ALLOCATE_DSO
 uintptr_t libraryBase = 0x41000000;
+#endif
 
 constexpr bool verbose = false;
 constexpr bool stillSlightlyVerbose = false;
@@ -33,7 +35,7 @@ constexpr inline bool tlsAboveTp = true;
 extern DebugInterface globalDebugInterface;
 extern uintptr_t __stack_chk_guard;
 
-#ifdef MLIBC_STATIC_BUILD
+#if MLIBC_STATIC_BUILD
 extern "C" size_t __init_array_start[];
 extern "C" size_t __init_array_end[];
 extern "C" size_t __preinit_array_start[];
@@ -92,13 +94,13 @@ SharedObject *ObjectRepository::injectObjectFromDts(frg::string_view name,
 	__ensure(!findLoadedObject(name));
 
 	auto object = frg::construct<SharedObject>(getAllocator(),
-		name.data(), std::move(path), false, nullptr, rts);
+		name.data(), std::move(path), false, globalScope.get(), rts);
 	object->baseAddress = base_address;
 	object->dynamic = dynamic;
 	_parseDynamic(object);
 
 	_addLoadedObject(object);
-	_discoverDependencies(object, nullptr, rts);
+	_discoverDependencies(object, globalScope.get(), rts);
 
 	return object;
 }
@@ -110,12 +112,12 @@ SharedObject *ObjectRepository::injectObjectFromPhdrs(frg::string_view name,
 	__ensure(!findLoadedObject(name));
 
 	auto object = frg::construct<SharedObject>(getAllocator(),
-		name.data(), std::move(path), true, nullptr, rts);
+		name.data(), std::move(path), true, globalScope.get(), rts);
 	_fetchFromPhdrs(object, phdr_pointer, phdr_entry_size, num_phdrs, entry_pointer);
 	_parseDynamic(object);
 
 	_addLoadedObject(object);
-	_discoverDependencies(object, nullptr, rts);
+	_discoverDependencies(object, globalScope.get(), rts);
 
 	return object;
 }
@@ -126,10 +128,10 @@ SharedObject *ObjectRepository::injectStaticObject(frg::string_view name,
 		uint64_t rts) {
 	__ensure(!findLoadedObject(name));
 	auto object = frg::construct<SharedObject>(getAllocator(),
-		name.data(), std::move(path), true, nullptr, rts);
+		name.data(), std::move(path), true, globalScope.get(), rts);
 	_fetchFromPhdrs(object, phdr_pointer, phdr_entry_size, num_phdrs, entry_pointer);
 
-#ifdef MLIBC_STATIC_BUILD
+#if MLIBC_STATIC_BUILD
 	object->initArray = reinterpret_cast<InitFuncPtr*>(__init_array_start);
 	object->initArraySize = static_cast<size_t>((uintptr_t)__init_array_end -
 			(uintptr_t)__init_array_start);
@@ -242,6 +244,8 @@ SharedObject *ObjectRepository::requestObjectWithName(frg::string_view name,
 		localScope = frg::construct<Scope>(getAllocator());
 	}
 
+	__ensure(localScope != nullptr);
+
 	auto object = frg::construct<SharedObject>(getAllocator(),
 		name.data(), std::move(chosenPath), false, localScope, rts);
 
@@ -273,6 +277,8 @@ SharedObject *ObjectRepository::requestObjectAtPath(frg::string_view path,
 		// TODO: Free this when the scope is no longer needed.
 		localScope = frg::construct<Scope>(getAllocator());
 	}
+
+	__ensure(localScope != nullptr);
 
 	auto object = frg::construct<SharedObject>(getAllocator(),
 		name.data(), path.data(), false, localScope, rts);
@@ -424,8 +430,25 @@ void ObjectRepository::_fetchFromFile(SharedObject *object, int fd) {
 	}
 
 	__ensure(!(object->baseAddress & (hugeSize - 1)));
+
+#if MLIBC_MMAP_ALLOCATE_DSO
+	void *mappedAddr = nullptr;
+
+	if (mlibc::sys_vm_map(nullptr,
+			highest_address - object->baseAddress, PROT_NONE,
+			MAP_PRIVATE | MAP_ANONYMOUS, -1, 0, &mappedAddr)) {
+		mlibc::panicLogger() << "sys_vm_map failed when allocating address space for DSO \""
+				<< object->name << "\""
+				<< ", base " << (void *)object->baseAddress
+				<< ", requested " << (highest_address - object->baseAddress) << " bytes"
+				<< frg::endlog;
+	}
+
+	object->baseAddress = reinterpret_cast<uintptr_t>(mappedAddr);
+#else
 	object->baseAddress = libraryBase;
 	libraryBase += (highest_address + (hugeSize - 1)) & ~(hugeSize - 1);
+#endif
 
 	if(verbose || logBaseAddresses)
 		mlibc::infoLogger() << "rtdl: Loading " << object->name
@@ -457,17 +480,15 @@ void ObjectRepository::_fetchFromFile(SharedObject *object, int fd) {
 			if(phdr->p_flags & PF_X)
 				prot |= PROT_EXEC;
 
-			#ifdef MLIBC_MAP_DSO_SEGMENTS
-				// TODO: Map with (prot | PROT_WRITE) here,
-				// then mprotect() to remove PROT_WRITE if that is necessary.
+			#if MLIBC_MAP_DSO_SEGMENTS
 				void *map_pointer;
 				if(mlibc::sys_vm_map(reinterpret_cast<void *>(map_address),
-						backed_map_size, prot,
+						backed_map_size, prot | PROT_WRITE,
 						MAP_PRIVATE | MAP_FIXED, fd, phdr->p_offset - misalign, &map_pointer))
 					__ensure(!"sys_vm_map failed");
 				if(total_map_size > backed_map_size)
 					if(mlibc::sys_vm_map(reinterpret_cast<void *>(map_address + backed_map_size),
-							total_map_size - backed_map_size, prot,
+							total_map_size - backed_map_size, prot | PROT_WRITE,
 							MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0, &map_pointer))
 						__ensure(!"sys_vm_map failed");
 
@@ -494,6 +515,10 @@ void ObjectRepository::_fetchFromFile(SharedObject *object, int fd) {
 				readExactlyOrDie(fd, reinterpret_cast<char *>(map_address) + misalign,
 						phdr->p_filesz);
 			#endif
+			// Take care of removing superfluous permissions.
+			if(mlibc::sys_vm_protect && ((prot & PROT_WRITE) == 0))
+				if(mlibc::sys_vm_protect(map_pointer, total_map_size, prot))
+					mlibc::infoLogger() << "mlibc: sys_vm_protect() failed in ld.so" << frg::endlog;
 		}else if(phdr->p_type == PT_TLS) {
 			object->tlsSegmentSize = phdr->p_memsz;
 			object->tlsAlignment = phdr->p_align;
