@@ -37,6 +37,8 @@ typedef struct {
 extern "C" {
 #endif
 
+typedef void (*__sighandler) (int);
+
 #define SIG_ERR ((__sighandler)(void *)(-1))
 #define SIG_DFL ((__sighandler)(void *)(0))
 #define SIG_IGN ((__sighandler)(void *)(1))
