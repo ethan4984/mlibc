@@ -18,8 +18,8 @@
 #include <dlfcn.h>
 #endif
 
-#define HIDDEN  __attribute__ ((visibility ("hidden")))
-#define EXPORT  __attribute__ ((visibility ("default")))
+#define HIDDEN  __attribute__((__visibility__("hidden")))
+#define EXPORT  __attribute__((__visibility__("default")))
 
 static constexpr bool logEntryExit = false;
 static constexpr bool logStartup = false;
@@ -567,8 +567,8 @@ int __dlapi_reverse(const void *ptr, __dlapi_symbol *info) {
 	if (logDlCalls)
 		mlibc::infoLogger() << "rtdl: __dlapi_reverse(" << ptr << ")" << frg::endlog;
 
-	for(size_t i = 0; i < globalScope->_objects.size(); i++) {
-		auto object = globalScope->_objects[i];
+	for(size_t i = 0; i < initialRepository->loadedObjects.size(); i++) {
+		auto object = initialRepository->loadedObjects[i];
 
 		auto eligible = [&] (ObjectSymbol cand) {
 			if(cand.symbol()->st_shndx == SHN_UNDEF)
@@ -601,8 +601,8 @@ int __dlapi_reverse(const void *ptr, __dlapi_symbol *info) {
 	}
 
 	// Not found, find the DSO it should be in.
-	for(size_t i = 0; i < globalScope->_objects.size(); i++) {
-		auto object = globalScope->_objects[i];
+	for(size_t i = 0; i < initialRepository->loadedObjects.size(); i++) {
+		auto object = initialRepository->loadedObjects[i];
 
 		for(size_t j = 0; j < object->phdrCount; j++) {
 			auto phdr = (Elf64_Phdr *)((uintptr_t)object->phdrPointer + j * object->phdrEntrySize);

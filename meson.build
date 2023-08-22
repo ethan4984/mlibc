@@ -141,7 +141,14 @@ elif host_machine.system() == 'ironclad'
 	rtdl_include_dirs += include_directories('sysdeps/ironclad/include')
 	libc_include_dirs += include_directories('sysdeps/ironclad/include')
 	subdir('sysdeps/ironclad')
+elif host_machine.system() == 'keyronex'
+	rtdl_include_dirs += include_directories('sysdeps/keyronex/include')
+	libc_include_dirs += include_directories('sysdeps/keyronex/include')
+	internal_conf.set10('MLIBC_MAP_DSO_SEGMENTS', true)
+	internal_conf.set10('MLIBC_MAP_FILE_WINDOWS', true)
+	subdir('sysdeps/keyronex')
 elif host_machine.system() == 'lyre'
+	disable_linux_option = true
 	rtdl_include_dirs += include_directories('sysdeps/lyre/include')
 	libc_include_dirs += include_directories('sysdeps/lyre/include')
 	subdir('sysdeps/lyre')
@@ -254,6 +261,7 @@ internal_sources = [
 	'options/internal/generic/sigset.cpp',
 	'options/internal/generic/strings.cpp',
 	'options/internal/generic/ubsan.cpp',
+	'options/internal/generic/threads.cpp',
 	'options/internal/gcc/stack_protector.cpp',
 	'options/internal/gcc/guard-abi.cpp',
 	'options/internal/gcc/initfini.cpp',
@@ -287,6 +295,9 @@ if not no_headers
 		'options/internal/include/bits/sigset_t.h',
 		'options/internal/include/bits/inline-definition.h',
 		'options/internal/include/bits/ether_addr.h',
+		'options/internal/include/bits/cpu_set.h',
+		'options/internal/include/bits/threads.h',
+		'options/internal/include/bits/winsize.h',
 		subdir: 'bits'
 	)
 endif
@@ -327,6 +338,11 @@ if not headers_only
 
 		compiler_rt_name = 'libclang_rt.builtins-' + host_machine.cpu_family()
 		compiler_rt = meson.get_compiler('c').find_library(compiler_rt_name, required: false)
+
+		if not compiler_rt.found()
+			compiler_rt_name = 'libclang_rt.builtins'
+			compiler_rt = meson.get_compiler('c').find_library(compiler_rt_name, required: false)
+		endif
 
 		if libgcc.found()
 			rtlib_deps += libgcc
@@ -401,6 +417,37 @@ if not headers_only
 	library('dl', 'dummy-libs/libdl/src/dummy.cpp', install: true)
 endif
 
+summary_info = {}
+summary_info += {'Build tests': build_tests}
+summary_info += {'Build host-libc tests': build_tests_host_libc}
+summary(summary_info, bool_yn: true, section: 'tests')
+
+summary_info = {}
+summary_info += {'headers-only': headers_only}
+summary_info += {'ANSI option': not disable_ansi_option}
+summary_info += {'crypt option': not disable_crypt_option}
+summary_info += {'POSIX option': not disable_posix_option}
+summary_info += {'Linux option': not disable_linux_option}
+summary_info += {'iconv option': not disable_iconv_option}
+summary_info += {'intl option': not disable_intl_option}
+summary_info += {'glibc option': not disable_glibc_option}
+summary_info += {'BSD option': not disable_bsd_option}
+summary_info += {'debug allocator': get_option('debug_allocator')}
+summary_info += {'libgcc dependency': not disable_libgcc_dependency}
+summary(summary_info, bool_yn: true, section: 'mlibc options')
+
 if build_tests
 	subdir('tests/')
+endif
+
+hdoc = find_program('hdoc', required: false)
+
+conf_data = configuration_data()
+conf_data.set('source_root', meson.source_root())
+conf_data.set('build_root', meson.build_root())
+configure_file(input: 'scripts/hdoc.toml.in',
+	output: '.hdoc.toml', configuration: conf_data)
+
+if hdoc.found()
+	run_target('hdoc', command : [hdoc.full_path(), '--verbose'])
 endif

@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+#ifndef __MLIBC_ABI_ONLY
+
 extern const struct in6_addr in6addr_any;
 extern const struct in6_addr in6addr_loopback;
 
@@ -20,6 +22,8 @@ uint32_t htonl(uint32_t);
 uint16_t htons(uint16_t);
 uint32_t ntohl(uint32_t);
 uint16_t ntohs(uint16_t);
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #define IN6_IS_ADDR_UNSPECIFIED(a) ({ \
     uint32_t *_a = (uint32_t *)(((struct in6_addr *) a)->s6_addr); \
@@ -56,7 +60,11 @@ uint16_t ntohs(uint16_t);
 #define IN6_ARE_ADDR_EQUAL(a, b) \
 	__ARE_4_BYTE_EQUAL((const uint32_t *)(a), (const uint32_t *)(b))
 
-#define IN6_IS_ADDR_V4COMPAT 7
+#define IN6_IS_ADDR_V4COMPAT(a) ({ \
+	uint32_t *_a = (uint32_t *)(((struct in6_addr *) a)->s6_addr); \
+	uint8_t *_a8 = (uint8_t *)(((struct in6_addr *) a)->s6_addr); \
+	!_a[0] && !_a[1] && !_a[2] && (_a8[15] > 1); \
+})
 #define IN6_IS_ADDR_MC_NODELOCAL(a) ({ \
     (IN6_IS_ADDR_MULTICAST(a) && \
     ((((const uint8_t *)(a))[1] & 0xf) == 0x1)); \

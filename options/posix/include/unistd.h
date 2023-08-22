@@ -12,6 +12,7 @@
 #include <abi-bits/uid_t.h>
 #include <abi-bits/gid_t.h>
 #include <abi-bits/pid_t.h>
+#include <abi-bits/seek-whence.h>
 
 #if __MLIBC_SYSDEP_HAS_BITS_SYSCALL_H && __MLIBC_LINUX_OPTION
 #include <bits/syscall.h>
@@ -203,6 +204,8 @@ extern "C" {
 typedef __mlibc_intptr intptr_t;
 #endif
 
+#ifndef __MLIBC_ABI_ONLY
+
 int access(const char *path, int mode);
 unsigned int alarm(unsigned int seconds);
 int chdir(const char *path);
@@ -212,7 +215,7 @@ ssize_t confstr(int, char *, size_t);
 char *ctermid(char *s);
 int dup(int fd);
 int dup2(int src_fd, int dest_fd);
-__attribute__ ((noreturn)) void _exit(int status);
+__attribute__((__noreturn__)) void _exit(int status);
 void endusershell(void);
 int execl(const char *, const char *, ...);
 int execle(const char *, const char *, ...);
@@ -283,7 +286,7 @@ void swab(const void *__restrict, void *__restrict, ssize_t);
 int symlink(const char *, const char *);
 int symlinkat(const char *, int, const char *);
 void sync(void);
-unsigned long sysconf(int);
+long sysconf(int);
 pid_t tcgetpgrp(int);
 int tcsetpgrp(int, pid_t);
 int truncate(const char *, off_t);
@@ -299,8 +302,12 @@ extern int optind;
 extern int opterr;
 extern int optopt;
 
+#endif /* !__MLIBC_ABI_ONLY */
+
 // Non-POSIX functions supported by Linux.
 typedef __mlibc_uint64 useconds_t;
+
+#ifndef __MLIBC_ABI_ONLY
 
 int getpagesize(void);
 char *get_current_dir_name(void);
@@ -329,6 +336,8 @@ int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
 char *crypt(const char *, const char *);
 void encrypt(char block[64], int flags);
 #endif
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #ifdef __cplusplus
 }

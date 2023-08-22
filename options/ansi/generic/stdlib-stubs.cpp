@@ -54,7 +54,7 @@ long long atoll(const char *string) {
 // to avoid exporting sigprocmask when posix is disabled.
 int sigprocmask(int, const sigset_t *__restrict, sigset_t *__restrict);
 extern "C" {
-	__attribute__ (( returns_twice )) int __sigsetjmp(sigjmp_buf buffer, int savesigs) {
+	__attribute__((__returns_twice__)) int __sigsetjmp(sigjmp_buf buffer, int savesigs) {
 		buffer[0].savesigs = savesigs;
 		if (savesigs)
 			sigprocmask(0, NULL, &buffer[0].sigset);
@@ -62,7 +62,7 @@ extern "C" {
 	}
 }
 
-__attribute__ (( noreturn )) void siglongjmp(sigjmp_buf buffer, int value) {
+__attribute__((__noreturn__)) void siglongjmp(sigjmp_buf buffer, int value) {
 	if (buffer[0].savesigs)
 		sigprocmask(SIG_SETMASK, &buffer[0].sigset, NULL);
 	jmp_buf b;
@@ -138,6 +138,13 @@ void *aligned_alloc(size_t alignment, size_t size) {
 
 }
 void *calloc(size_t count, size_t size) {
+	// we want to ensure that count*size > SIZE_MAX doesn't happen
+	// to prevent overflowing, we divide both sides of the inequality by size and check with that
+	if(size && count > (SIZE_MAX / size)) {
+		errno = EINVAL;
+		return NULL;
+	}
+
 	// TODO: this could be done more efficient if the OS gives us already zero'd pages
 	void *ptr = malloc(count * size);
 	if(!ptr)
@@ -297,14 +304,27 @@ void *bsearch(const void *key, const void *base, size_t count, size_t size,
 
 	return nullptr;
 }
+
+static int qsort_callback(const void *a, const void *b, void *arg) {
+	auto compare = reinterpret_cast<int (*)(const void *, const void *)>(arg);
+
+	return compare(a, b);
+}
+
 void qsort(void *base, size_t count, size_t size,
 		int (*compare)(const void *, const void *)) {
+	return qsort_r(base, count, size, qsort_callback, (void *) compare);
+}
+
+void qsort_r(void *base, size_t count, size_t size,
+		int (*compare)(const void *, const void *, void *),
+		void *arg) {
 	// TODO: implement a faster sort
 	for(size_t i = 0; i < count; i++) {
 		void *u = (void *)((uintptr_t)base + i * size);
 		for(size_t j = i + 1; j < count; j++) {
 			void *v = (void *)((uintptr_t)base + j * size);
-			if(compare(u, v) <= 0)
+			if(compare(u, v, arg) <= 0)
 				continue;
 
 			// swap u and v
@@ -317,14 +337,6 @@ void qsort(void *base, size_t count, size_t size,
 			}
 		}
 	}
-}
-
-void qsort_r(void *, size_t, size_t,
-		int (*compare)(const void *, const void *, void *),
-		void *) {
-	(void) compare;
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
 }
 
 int abs(int num) {
@@ -391,10 +403,26 @@ int mbtowc(wchar_t *__restrict wc, const char *__restrict mb, size_t max_size) {
 			mlibc::code_seq<wchar_t> wseq{wc, wc + 1};
 			mlibc::code_seq<const char> nseq{mb, mb + max_size};
 			auto e = cc->decode_wtranscode(nseq, wseq, mbtowc_state);
-			if (e != mlibc::charcode_error::null)
-				__ensure(!"decode_wtranscode() errors are not handled");
-
-			return nseq.it - mb;
+			switch(e) {
+				// We keep the state, so we can simply return here.
+				case mlibc::charcode_error::input_underflow:
+				case mlibc::charcode_error::null: {
+					return nseq.it - mb;
+				}
+				case mlibc::charcode_error::illegal_input: {
+					errno = -EILSEQ;
+					return -1;
+				}
+				case mlibc::charcode_error::dirty: {
+					mlibc::panicLogger() << "decode_wtranscode() charcode_error::dirty errors are not handled" << frg::endlog;
+					break;
+				}
+				case mlibc::charcode_error::output_overflow: {
+					mlibc::panicLogger() << "decode_wtranscode() charcode_error::output_overflow errors are not handled" << frg::endlog;
+					break;
+				}
+			}
+			__builtin_unreachable();
 		} else {
 			*wc = L'\0';
 			return 0; // When mbs is a null byte, return 0

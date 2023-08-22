@@ -7,6 +7,7 @@ all_test_cases = [
 	'ansi/strtol',
 	'ansi/abs',
 	'ansi/longjmp',
+	'ansi/mbrtoc32',
 	'ansi/strverscmp',
 	'ansi/strftime',
 	'ansi/strchr',
@@ -21,6 +22,10 @@ all_test_cases = [
 	'ansi/memmem',
 	'ansi/creal-cimag',
 	'ansi/fenv',
+	'ansi/qsort',
+	'ansi/freopen',
+	'ansi/strxfrm',
+	'ansi/calloc',
 	'bsd/ns_get_put',
 	'bsd/reallocarray',
 	'bsd/strl',
@@ -43,6 +48,7 @@ all_test_cases = [
 	'posix/pthread_schedparam',
 	'posix/pwd',
 	'posix/fdopen',
+	'posix/fopencookie',
 	'posix/getaddrinfo',
 	'posix/getdelim',
 	'posix/getnameinfo',
@@ -82,6 +88,7 @@ all_test_cases = [
 	'posix/if_indextoname',
 	'posix/readv-writev',
 	'posix/posix-timer',
+	'posix/strdupa',
 	'glibc/getopt',
 	'glibc/ffsl-ffsll',
 	'glibc/error_message_count',
@@ -92,6 +99,9 @@ all_test_cases = [
 	'glibc/error_at_line',
 	'linux/xattr',
 	'linux/pthread_setname_np',
+	'linux/pthread_attr',
+	'linux/cpuset',
+	'linux/malloc-usable-size',
 ]
 
 if host_machine.system() == 'linux'
@@ -116,7 +126,12 @@ host_libc_noasan_test_cases = [
 	'posix/pthread_attr', # does some stack overflowing to check stack size
 	'posix/posix_memalign',
 	'posix/search', # requires tdelete (#351)
+	'ansi/calloc', # does some overflowing
 ]
+
+extra_cflags_test_cases = {
+	'ansi/calloc': ['-Wno-alloc-size-larger-than'],
+}
 
 test_sources = []
 test_link_args = []
@@ -212,10 +227,17 @@ foreach test_name : all_test_cases
 		else
 			host_libc_sanitize_options = 'b_sanitize=address,undefined'
 		endif
+
+		if test_name in extra_cflags_test_cases
+			extra_cflags = extra_cflags_test_cases[test_name]
+		else
+			extra_cflags = []
+		endif
+
 		exec = executable('host-libc-' + test_exec_name, test_name + '.c',
 			build_rpath: meson.build_root(),
 			override_options: host_libc_sanitize_options,
-			c_args: ['-D_GNU_SOURCE', '-DUSE_HOST_LIBC', '-pthread'],
+			c_args: ['-D_GNU_SOURCE', '-DUSE_HOST_LIBC', '-pthread', extra_cflags],
 			link_args: ['-lresolv', '-ldl', '-pthread', '-lm', '-lrt'],
 			native: true,
 		)

@@ -326,7 +326,7 @@ SharedObject *ObjectRepository::findLoadedObject(frg::string_view name) {
 	for (auto object : loadedObjects) {
 		// See if any object has a matching SONAME.
 		if (object->soName && name == object->soName)
-			return object;	
+			return object;
 	}
 
 	// TODO: We should also look at the device and inode here as a fallback.
@@ -547,6 +547,8 @@ void ObjectRepository::_fetchFromFile(SharedObject *object, int fd) {
 // --------------------------------------------------------
 
 void ObjectRepository::_parseDynamic(SharedObject *object) {
+	static bool rpathWarned = false;
+
 	if(!object->dynamic)
 		mlibc::infoLogger() << "ldso: Object '" << object->name
 				<< "' does not have a dynamic section" << frg::endlog;
@@ -635,7 +637,10 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 						<< frg::endlog;
 			break;
 		case DT_RPATH:
-			mlibc::infoLogger() << "\e[31mrtdl: RUNPATH not preferred over RPATH properly\e[39m" << frg::endlog;
+			if(!rpathWarned) {
+				rpathWarned = true;
+				mlibc::infoLogger() << "\e[31mrtdl: RUNPATH not preferred over RPATH properly\e[39m" << frg::endlog;
+			}
 			[[fallthrough]];
 		case DT_RUNPATH:
 			runpath_offset = dynamic->d_un.d_val;
@@ -683,8 +688,11 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 		case DT_TLSDESC_PLT: case DT_TLSDESC_GOT:
 			break;
 		default:
-			mlibc::panicLogger() << "Unexpected dynamic entry "
+			// Ignore unknown entries in the os-specific area as we don't use them.
+			if(dynamic->d_tag < DT_LOOS || dynamic->d_tag > DT_HIOS) {
+				mlibc::panicLogger() << "Unexpected dynamic entry "
 					<< (void *)dynamic->d_tag << " in object" << frg::endlog;
+			}
 		}
 	}
 
@@ -709,7 +717,7 @@ void ObjectRepository::_discoverDependencies(SharedObject *object,
 		const char *library_str = (const char *)(object->baseAddress
 				+ object->stringTableOffset + dynamic->d_un.d_val);
 
-		auto library = requestObjectWithName(frg::string_view{library_str}, 
+		auto library = requestObjectWithName(frg::string_view{library_str},
 				object, localScope, false, rts);
 		if(!library)
 			mlibc::panicLogger() << "Could not satisfy dependency " << library_str << frg::endlog;
@@ -909,7 +917,7 @@ Tcb *allocateTcb() {
 	tcb_ptr->cancelBits = tcbCancelEnableBit;
 	tcb_ptr->didExit = 0;
 	tcb_ptr->isJoinable = 1;
-	tcb_ptr->returnValue = nullptr;
+	memset(&tcb_ptr->returnValue, 0, sizeof(tcb_ptr->returnValue));
 	tcb_ptr->localKeys = frg::construct<frg::array<Tcb::LocalKey, PTHREAD_KEYS_MAX>>(getAllocator());
 	tcb_ptr->dtvSize = runtimeTlsMap->indices.size();
 	tcb_ptr->dtvPointers = frg::construct_n<void *>(getAllocator(), runtimeTlsMap->indices.size());
@@ -1132,7 +1140,7 @@ void Scope::appendObject(SharedObject *object) {
 frg::optional<ObjectSymbol> Scope::resolveGlobalOrLocal(Scope &globalScope,
 		Scope *localScope, frg::string_view string, uint64_t skipRts, ResolveFlags flags) {
 	auto sym = globalScope.resolveSymbol(string, skipRts, flags | skipGlobalAfterRts);
-	if(!sym && localScope) 
+	if(!sym && localScope)
 		sym = localScope->resolveSymbol(string, skipRts, flags | skipGlobalAfterRts);
 	return sym;
 }
@@ -1709,6 +1717,14 @@ void Loader::_processLazyRelocations(SharedObject *object) {
 				*((uint64_t *)rel_addr) += object->baseAddress;
 			}
 			break;
+#if defined(__x86_64__)
+		case R_X86_64_IRELATIVE: {
+			auto ptr = object->baseAddress + reloc->r_addend;
+			auto target = reinterpret_cast<Elf64_Addr (*)(void)>(ptr)();
+			*((uint64_t *)rel_addr) = target;
+			break;
+		}
+#endif
 // TODO: TLSDESC relocations aren't aarch64 specific
 #if defined(__aarch64__)
 		case R_AARCH64_TLSDESC: {

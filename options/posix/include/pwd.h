@@ -21,6 +21,10 @@ struct passwd {
 	char *pw_shell;
 };
 
+#define NSS_BUFLEN_PASSWD 512
+
+#ifndef __MLIBC_ABI_ONLY
+
 void endpwent(void);
 struct passwd *getpwent(void);
 struct passwd *getpwnam(const char *);
@@ -30,6 +34,8 @@ int getpwuid_r(uid_t, struct passwd *, char *, size_t, struct passwd **);
 void setpwent(void);
 int putpwent(const struct passwd *, FILE *);
 struct passwd *fgetpwent(FILE *);
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #ifdef __cplusplus
 }

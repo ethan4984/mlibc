@@ -66,7 +66,9 @@ ansi_sources = files(
 	'generic/stdio-stubs.cpp',
 	'generic/stdlib-stubs.cpp',
 	'generic/string-stubs.cpp',
+	'generic/threads.cpp',
 	'generic/time-stubs.cpp',
+	'generic/uchar.cpp',
 	'generic/wchar-stubs.cpp',
 	'generic/wctype.cpp',
 )
@@ -85,10 +87,13 @@ if not no_headers
 		'include/math.h',
 		'include/setjmp.h',
 		'include/signal.h',
+		'include/stdc-predef.h',
 		'include/stdio.h',
 		'include/stdlib.h',
 		'include/string.h',
+		'include/threads.h',
 		'include/time.h',
+		'include/uchar.h',
 		'include/wchar.h',
 		'include/wctype.h',
 	)

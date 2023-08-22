@@ -2,9 +2,29 @@
 #include <mlibc/thread-entry.hpp>
 #include <mlibc/debug.hpp>
 #include <abi-bits/in.h>
+#include <abi-bits/errno.h>
 
 #include <aero/syscall.h>
+
+#include <unistd.h>
 #include <stdint.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+
+namespace {
+
+int fcntl_helper(int fd, int request, int *result, ...) {
+	va_list args;
+	va_start(args, result);
+	if(!mlibc::sys_fcntl) {
+		return ENOSYS;
+	}
+	int ret = mlibc::sys_fcntl(fd, request, args, result);
+	va_end(args);
+	return ret;
+}
+
+}
 
 namespace mlibc {
 int sys_socket(int family, int type, int protocol, int *fd) {
@@ -50,7 +70,7 @@ int sys_listen(int fd, int backlog) {
 }
 
 int sys_accept(int sockfd, int *newfd, struct sockaddr *addr_ptr,
-               socklen_t *addr_length) {
+               socklen_t *addr_length, int flags) {
     auto result = syscall(SYS_ACCEPT, sockfd, addr_ptr, addr_length);
 
     if (result < 0) {
@@ -58,6 +78,19 @@ int sys_accept(int sockfd, int *newfd, struct sockaddr *addr_ptr,
     }
 
     *newfd = result;
+
+	if(flags & SOCK_NONBLOCK) {
+		int fcntl_ret = 0;
+		fcntl_helper(*newfd, F_GETFL, &fcntl_ret);
+		fcntl_helper(*newfd, F_SETFL, &fcntl_ret, fcntl_ret | O_NONBLOCK);
+	}
+
+	if(flags & SOCK_CLOEXEC) {
+		int fcntl_ret = 0;
+		fcntl_helper(*newfd, F_GETFD, &fcntl_ret);
+		fcntl_helper(*newfd, F_SETFD, &fcntl_ret, fcntl_ret | FD_CLOEXEC);
+	}
+
     return 0;
 }
 
@@ -181,10 +214,37 @@ int sys_setsockopt(int fd, int layer, int number, const void *buffer,
                             << frg::endlog;
         return 0;
     } else {
-        mlibc::panicLogger()
+        mlibc::infoLogger()
             << "\e[31mmlibc: Unexpected setsockopt() call, layer: " << layer
             << " number: " << number << "\e[39m" << frg::endlog;
-        __builtin_unreachable();
+        return 0;
     }
+}
+
+int sys_shutdown(int sockfd, int how) {
+    auto ret = syscall(SYS_SOCK_SHUTDOWN, sockfd, how);
+    if(int e = sc_error(ret); e)
+        return e;
+    return 0;    
+}
+
+int sys_if_nametoindex(const char *name, unsigned int *ret) {
+    int fd = 0;
+    int r = sys_socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, AF_UNSPEC, &fd);
+
+    if (r)
+        return r;
+
+    struct ifreq ifr;
+    strncpy(ifr.ifr_name, name, sizeof ifr.ifr_name);
+
+    r = sys_ioctl(fd, SIOCGIFINDEX, &ifr, NULL);
+    close(fd);
+
+    if (r)
+        return r;
+
+    *ret = ifr.ifr_ifindex;
+    return 0;
 }
 } // namespace mlibc

@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#ifndef __MLIBC_ABI_ONLY
+
 // [7.24.2] Copying functions
 
 void *memcpy(void *__restrict dest, const void *__restrict src, size_t size);
@@ -49,8 +51,15 @@ void *memset(void *dest, int c, size_t size);
 char *strerror(int errnum);
 size_t strlen(const char *s);
 
-// POSIX extensions.
+#endif /* !__MLIBC_ABI_ONLY */
 
+#if __MLIBC_POSIX_OPTION && (defined(_BSD_SOURCE) || defined(_GNU_SOURCE))
+#include <strings.h>
+#endif
+
+#ifndef __MLIBC_ABI_ONLY
+
+// POSIX extensions.
 int strerror_r(int, char *, size_t);
 void *mempcpy(void *, const void *, size_t);
 
@@ -84,6 +93,8 @@ static inline char *__mlibc_gnu_basename(char *path) {
 
 #define basename __mlibc_gnu_basename
 #endif
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #ifdef __cplusplus
 }

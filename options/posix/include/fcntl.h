@@ -17,13 +17,6 @@ extern "C" {
 
 #define O_NDELAY O_NONBLOCK
 
-#define POSIX_FADV_NORMAL 1
-#define POSIX_FADV_SEQUENTIAL 2
-#define POSIX_FADV_NOREUSE 3
-#define POSIX_FADV_DONTNEED 4
-#define POSIX_FADV_WILLNEED 5
-#define POSIX_FADV_RANDOM 6
-
 struct flock {
 	short l_type;
 	short l_whence;
@@ -31,6 +24,8 @@ struct flock {
 	off_t l_len;
 	pid_t l_pid;
 };
+
+#ifndef __MLIBC_ABI_ONLY
 
 int creat(const char *, mode_t);
 int fallocate(int fd, int mode, off_t offset, off_t len);
@@ -40,6 +35,8 @@ int openat(int, const char *, int, ...);
 int posix_fadvise(int, off_t, off_t, int);
 int posix_fallocate(int, off_t, off_t);
 
+#endif /* !__MLIBC_ABI_ONLY */
+
 // This is a linux extension
 
 struct file_handle {
@@ -48,11 +45,15 @@ struct file_handle {
         unsigned char f_handle[0];
 };
 
+#ifndef __MLIBC_ABI_ONLY
+
 int name_to_handle_at(int, const char *, struct file_handle *, int *, int);
 int open_by_handle_at(int, struct file_handle *, int);
 
 ssize_t splice(int fd_in, off_t *off_in, int fd_out, off_t *off_out, size_t len, unsigned int flags);
 ssize_t vmsplice(int fd, const struct iovec *iov, size_t nr_segs, unsigned int flags);
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #define SPLICE_F_MOVE 1
 #define SPLICE_F_NONBLOCK 2

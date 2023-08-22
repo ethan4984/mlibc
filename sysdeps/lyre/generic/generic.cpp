@@ -20,6 +20,21 @@
 	sys_libc_panic(); \
 }
 
+namespace {
+
+int fcntl_helper(int fd, int request, int *result, ...) {
+	va_list args;
+	va_start(args, result);
+	if(!mlibc::sys_fcntl) {
+		return ENOSYS;
+	}
+	int ret = mlibc::sys_fcntl(fd, request, args, result);
+	va_end(args);
+	return ret;
+}
+
+}
+
 namespace mlibc {
 
 void sys_libc_log(const char *message) {
@@ -485,7 +500,7 @@ int sys_setgid(gid_t) {
 	return 0;
 }
 
-pid_t sys_getpgid(pid_t, pid_t *) {
+int sys_getpgid(pid_t, pid_t *) {
 	return 0;
 }
 
@@ -610,13 +625,26 @@ int sys_connect(int fd, const struct sockaddr *addr_ptr, socklen_t addr_length) 
 	return 0;
 }
 
-int sys_accept(int fd, int *newfd, struct sockaddr *addr_ptr, socklen_t *addr_length) {
+int sys_accept(int fd, int *newfd, struct sockaddr *addr_ptr, socklen_t *addr_length, int flags) {
 	__syscall_ret ret = __syscall(SYS_accept, fd, addr_ptr, addr_length);
 	int ret_value = (int)ret.ret;
 	if (ret_value == -1) {
 		return ret.errno;
 	}
 	*newfd = ret_value;
+
+	if(flags & SOCK_NONBLOCK) {
+		int fcntl_ret = 0;
+		fcntl_helper(*newfd, F_GETFL, &fcntl_ret);
+		fcntl_helper(*newfd, F_SETFL, &fcntl_ret, fcntl_ret | O_NONBLOCK);
+	}
+
+	if(flags & SOCK_CLOEXEC) {
+		int fcntl_ret = 0;
+		fcntl_helper(*newfd, F_GETFD, &fcntl_ret);
+		fcntl_helper(*newfd, F_SETFD, &fcntl_ret, fcntl_ret | FD_CLOEXEC);
+	}
+
 	return 0;
 }
 
@@ -684,7 +712,10 @@ int sys_listen(int fd, int backlog) {
 	return 0;
 }
 
-int sys_inotify_create(int, int *) STUB_ONLY
+int sys_inotify_create(int, int *) {
+	mlibc::infoLogger() << "mlibc: sys_inotify_create() is unimplemented" << frg::endlog;
+	return ENOSYS;
+}
 
 int sys_fork(pid_t *child) {
 	__syscall_ret ret = __syscall(SYS_fork);

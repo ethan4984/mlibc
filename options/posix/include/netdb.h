@@ -38,6 +38,7 @@
 #define EAI_SYSTEM 9
 #define EAI_OVERFLOW 10
 #define EAI_NODATA 11
+#define EAI_ADDRFAMILY 12
 
 #define HOST_NOT_FOUND 1
 #define TRY_AGAIN      2
@@ -53,8 +54,12 @@
 extern "C" {
 #endif
 
+#ifndef __MLIBC_ABI_ONLY
+
 int *__h_errno_location(void);
 #define h_errno (*__h_errno_location())
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 struct hostent {
 	char *h_name;
@@ -97,6 +102,8 @@ struct addrinfo {
 	struct addrinfo *ai_next;
 };
 
+#ifndef __MLIBC_ABI_ONLY
+
 void endhostent(void);
 void endnetent(void);
 void endprotoent(void);
@@ -128,6 +135,8 @@ void sethostent(int);
 void setnetent(int);
 void setprotoent(int);
 void setservent(int);
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #ifdef __cplusplus
 }

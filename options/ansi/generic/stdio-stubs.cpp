@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -253,9 +254,16 @@ char *tmpnam(char *) {
 
 // fflush() is provided by the POSIX sublibrary
 // fopen() is provided by the POSIX sublibrary
-FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+FILE *freopen(const char *__restrict path, const char *__restrict mode, FILE *__restrict f) {
+	auto file = static_cast<mlibc::abstract_file *>(f);
+	frg::unique_lock lock(file->_lock);
+
+	if(file->reopen(path, mode) == -1) {
+		errno = EINVAL;
+		return nullptr;
+	}
+
+    return f;
 }
 
 void setbuf(FILE *__restrict stream, char *__restrict buffer) {
@@ -340,7 +348,7 @@ static void store_int(void *dest, unsigned int size, unsigned long long i) {
 }
 
 template<typename H>
-static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
+static int do_scanf(H &handler, const char *fmt, __builtin_va_list args) {
 	int match_count = 0;
 	for (; *fmt; fmt++) {
 
@@ -444,16 +452,6 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
 				fmt++;
 				break;
 			}
-			case '0': {
-				if (fmt[1] == 'x' || fmt[1] == 'X') {
-					base = 16;
-					fmt += 2;
-					break;
-				}
-				base = 8;
-				fmt++;
-				break;
-			}
 		}
 
 		// Leading whitespace is skipped for most conversions except these.
@@ -468,10 +466,29 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
 				base = 10;
 				[[fallthrough]];
 			case 'i': {
+				bool is_negative = false;
 				unsigned long long res = 0;
+
+				if((*fmt == 'i' || *fmt == 'd') && handler.look_ahead() == '-') {
+					handler.consume();
+					is_negative = true;
+				}
+
+				if(*fmt == 'i' && handler.look_ahead() == '0') {
+					handler.consume();
+					if(handler.look_ahead() == 'x') {
+						handler.consume();
+						base = 16;
+					} else {
+						base = 8;
+					}
+				}
+
 				char c = handler.look_ahead();
 				switch (base) {
 					case 10:
+						if(!isdigit(c))
+							return match_count;
 						while (c >= '0' && c <= '9') {
 							handler.consume();
 							res = res * 10 + (c - '0');
@@ -506,13 +523,17 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
 					case 8:
 						while (c >= '0' && c <= '7') {
 							handler.consume();
-							res = res * 10 + (c - '0');
+							res = res * 8 + (c - '0');
 							c = handler.look_ahead();
 						}
 						break;
 				}
-				if (dest)
-					store_int(dest, type, res);
+				if (dest) {
+					if(is_negative)
+						store_int(dest, type, -res);
+					else
+						store_int(dest, type, res);
+				}
 				break;
 			}
 			case 'o': {
@@ -520,7 +541,7 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
 				char c = handler.look_ahead();
 				while (c >= '0' && c <= '7') {
 					handler.consume();
-					res = res * 10 + (c - '0');
+					res = res * 8 + (c - '0');
 					c = handler.look_ahead();
 				}
 				if (dest)
@@ -712,7 +733,7 @@ int sscanf(const char *__restrict buffer, const char *__restrict format, ...) {
 	return result;
 }
 
-int vfprintf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_list args) {
+int vfprintf(FILE *__restrict stream, const char *__restrict format, __builtin_va_list args) {
 	frg::va_struct vs;
 	frg::arg arg_list[NL_ARGMAX + 1];
 	vs.arg_list = arg_list;
@@ -728,7 +749,7 @@ int vfprintf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_l
 	return p.count;
 }
 
-int vfscanf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_list args) {
+int vfscanf(FILE *__restrict stream, const char *__restrict format, __builtin_va_list args) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock lock(file->_lock);
 
@@ -758,17 +779,17 @@ int vfscanf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_li
 	return do_scanf(handler, format, args);
 }
 
-int vprintf(const char *__restrict format, __gnuc_va_list args){
+int vprintf(const char *__restrict format, __builtin_va_list args){
 	return vfprintf(stdout, format, args);
 }
 
-int vscanf(const char *__restrict, __gnuc_va_list) {
+int vscanf(const char *__restrict, __builtin_va_list) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
 int vsnprintf(char *__restrict buffer, size_t max_size,
-		const char *__restrict format, __gnuc_va_list args) {
+		const char *__restrict format, __builtin_va_list args) {
 	frg::va_struct vs;
 	frg::arg arg_list[NL_ARGMAX + 1];
 	vs.arg_list = arg_list;
@@ -783,7 +804,7 @@ int vsnprintf(char *__restrict buffer, size_t max_size,
 	return p.count;
 }
 
-int vsprintf(char *__restrict buffer, const char *__restrict format, __gnuc_va_list args) {
+int vsprintf(char *__restrict buffer, const char *__restrict format, __builtin_va_list args) {
 	frg::va_struct vs;
 	frg::arg arg_list[NL_ARGMAX + 1];
 	vs.arg_list = arg_list;
@@ -797,7 +818,7 @@ int vsprintf(char *__restrict buffer, const char *__restrict format, __gnuc_va_l
 	return p.count;
 }
 
-int vsscanf(const char *__restrict buffer, const char *__restrict format, __gnuc_va_list args) {
+int vsscanf(const char *__restrict buffer, const char *__restrict format, __builtin_va_list args) {
 	struct {
 		char look_ahead() {
 			return *buffer;
@@ -819,18 +840,18 @@ int vsscanf(const char *__restrict buffer, const char *__restrict format, __gnuc
 
 int fwprintf(FILE *__restrict, const wchar_t *__restrict, ...) MLIBC_STUB_BODY
 int fwscanf(FILE *__restrict, const wchar_t *__restrict, ...) MLIBC_STUB_BODY
-int vfwprintf(FILE *__restrict, const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
-int vfwscanf(FILE *__restrict, const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
+int vfwprintf(FILE *__restrict, const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
+int vfwscanf(FILE *__restrict, const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
 
 int swprintf(wchar_t *__restrict, size_t, const wchar_t *__restrict, ...) MLIBC_STUB_BODY
 int swscanf(wchar_t *__restrict, size_t, const wchar_t *__restrict, ...) MLIBC_STUB_BODY
-int vswprintf(wchar_t *__restrict, size_t, const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
-int vswscanf(wchar_t *__restrict, size_t, const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
+int vswprintf(wchar_t *__restrict, size_t, const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
+int vswscanf(wchar_t *__restrict, size_t, const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
 
 int wprintf(const wchar_t *__restrict, ...) MLIBC_STUB_BODY
 int wscanf(const wchar_t *__restrict, ...) MLIBC_STUB_BODY
-int vwprintf(const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
-int vwscanf(const wchar_t *__restrict, __gnuc_va_list) MLIBC_STUB_BODY
+int vwprintf(const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
+int vwscanf(const wchar_t *__restrict, __builtin_va_list) MLIBC_STUB_BODY
 
 int fgetc(FILE *stream) {
 	char c;
@@ -1066,7 +1087,7 @@ int asprintf(char **out, const char *format, ...) {
 	return result;
 }
 
-int vasprintf(char **out, const char *format, __gnuc_va_list args) {
+int vasprintf(char **out, const char *format, __builtin_va_list args) {
 	frg::va_struct vs;
 	frg::arg arg_list[NL_ARGMAX + 1];
 	vs.arg_list = arg_list;

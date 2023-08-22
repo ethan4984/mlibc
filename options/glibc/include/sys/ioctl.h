@@ -7,13 +7,18 @@
 // On Linux, sys/ioctl.h includes the termios ioctls.
 #if __MLIBC_LINUX_OPTION
 #	include <asm/ioctls.h>
+#	include <bits/winsize.h>
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifndef __MLIBC_ABI_ONLY
+
 int ioctl(int fd, unsigned long request, ...);
+
+#endif /* !__MLIBC_ABI_ONLY */
 
 #define FIONREAD 0x541B
 #define FIONBIO 0x5421

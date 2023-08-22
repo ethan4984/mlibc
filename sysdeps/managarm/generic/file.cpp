@@ -397,8 +397,10 @@ int sys_fcntl(int fd, int request, va_list args, int *result) {
 		mlibc::infoLogger() << "\e[31mmlibc: F_SETLKW\e[39m" << frg::endlog;
 		return 0;
 	}else if(request == F_GETLK) {
-		mlibc::infoLogger() << "\e[31mmlibc: F_GETLK\e[39m" << frg::endlog;
-		return ENOSYS;
+		struct flock *lock = va_arg(args, struct flock *);
+		lock->l_type = F_UNLCK;
+		mlibc::infoLogger() << "\e[31mmlibc: F_GETLK is stubbed!\e[39m" << frg::endlog;
+		return 0;
 	}else if(request == F_ADD_SEALS) {
 		auto seals = va_arg(args, int);
 		auto handle = getHandleForFd(fd);
@@ -599,8 +601,17 @@ int sys_vm_map(void *hint, size_t size, int prot, int flags, int fd, off_t offse
 
 	managarm::posix::SvrResponse<MemoryAllocator> resp(getSysdepsAllocator());
 	resp.ParseFromArray(recvResp.data(), recvResp.length());
-	__ensure(resp.error() == managarm::posix::Errors::SUCCESS);
-	*window = reinterpret_cast<void *>(resp.offset());
+	if(resp.error() == managarm::posix::Errors::ALREADY_EXISTS) {
+		return EEXIST;
+	}else if(resp.error() == managarm::posix::Errors::NO_MEMORY) {
+		return EFAULT;
+	}else if(resp.error() == managarm::posix::Errors::ILLEGAL_ARGUMENTS) {
+		return EINVAL;
+	}else {
+		__ensure(resp.error() == managarm::posix::Errors::SUCCESS);
+		*window = reinterpret_cast<void *>(resp.offset());
+	}
+
 	return 0;
 }
 
@@ -1094,12 +1105,14 @@ int sys_poll(struct pollfd *fds, nfds_t count, int timeout, int *num_events) {
 }
 
 int sys_epoll_create(int flags, int *fd) {
-	__ensure(!(flags & ~(EPOLL_CLOEXEC)));
+	// Some applications assume EPOLL_CLOEXEC and O_CLOEXEC to be the same.
+	// They are on linux, but not yet on managarm.
+	__ensure(!(flags & ~(EPOLL_CLOEXEC | O_CLOEXEC)));
 
 	SignalGuard sguard;
 
 	uint32_t proto_flags = 0;
-	if(flags & EPOLL_CLOEXEC)
+	if(flags & EPOLL_CLOEXEC || flags & O_CLOEXEC)
 		proto_flags |= managarm::posix::OpenFlags::OF_CLOEXEC;
 
 	managarm::posix::CntRequest<MemoryAllocator> req(getSysdepsAllocator());
@@ -1662,7 +1675,9 @@ int sys_write(int fd, const void *data, size_t size, ssize_t *bytes_written) {
 		return ENOTCONN;
 	}else{
 		__ensure(resp.error() == managarm::fs::Errors::SUCCESS);
-		*bytes_written = resp.size();
+		if(bytes_written) {
+			*bytes_written = resp.size();
+		}
 		return 0;
 	}
 }

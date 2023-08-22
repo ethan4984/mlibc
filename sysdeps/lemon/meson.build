@@ -8,6 +8,7 @@ libc_sources += files(
 	'generic/entry.cpp',
 	'generic/filesystem.cpp',
 	'generic/lemon.cpp',
+	'generic/pty.cpp',
 	'generic/signals.cpp',
 	'generic/sockets.cpp',
 	'generic/thread_entry.S',
@@ -57,6 +58,7 @@ if not no_headers
 		'include/abi-bits/statvfs.h',
 		'include/abi-bits/ioctls.h',
 		'include/abi-bits/xattr.h',
+		'include/abi-bits/msg.h',
 		subdir: 'abi-bits'
 	)
 	install_headers(

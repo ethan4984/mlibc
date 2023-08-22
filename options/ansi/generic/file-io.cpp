@@ -383,8 +383,10 @@ int abstract_file::_write_back() {
 int abstract_file::_save_pos() {
 	if (int e = _init_type(); e)
 		return e;
+	if (int e = _init_bufmode(); e)
+		return e;
 
-	if (_type == stream_type::file_like) {
+	if (_type == stream_type::file_like && _bufmode != buffer_mode::no_buffer) {
 		off_t new_offset;
 		auto seek_offset = (off_t(__offset) - off_t(__io_offset));
 		if (int e = io_seek(seek_offset, SEEK_CUR, &new_offset); e) {
@@ -441,6 +443,31 @@ int fd_file::close() {
 				<< frg::endlog;
 	if(int e = mlibc::sys_close(_fd); e)
 		return e;
+	return 0;
+}
+
+int fd_file::reopen(const char *path, const char *mode) {
+	int mode_flags = parse_modestring(mode);
+
+	int fd;
+	if(int e = sys_open(path, mode_flags, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH, &fd); e) {
+		return e;
+	}
+
+	flush();
+	close();
+	getAllocator().deallocate(__buffer_ptr, __buffer_size + ungetBufferSize);
+
+	__buffer_ptr = nullptr;
+	__unget_ptr = nullptr;
+	__buffer_size = 4096;
+	_reset();
+	_fd = fd;
+
+	if(mode_flags & O_APPEND) {
+		seek(0, SEEK_END);
+	}
+
 	return 0;
 }
 
