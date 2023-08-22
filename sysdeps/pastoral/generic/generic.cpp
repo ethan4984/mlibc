@@ -137,6 +137,7 @@
 #define SYSCALL_RECVFROM 64
 #define SYSCALL_CLONE 65
 #define SYSCALL_FUTEX 66
+#define SYSCALL_UNLINKAT 67
 
 #define TCGETS 0x5401
 #define TCSETS 0x5402
@@ -538,6 +539,19 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	}
 
 	*fd = ret;
+
+	return 0;
+}
+
+int sys_unlinkat(int dirfd, const char *path, int flags) {
+	int ret;
+	int errno;
+
+	SYSCALL3(SYSCALL_UNLINKAT, dirfd, path, flags);
+
+	if(ret == -1) {
+		return errno;
+	}
 
 	return 0;
 }
