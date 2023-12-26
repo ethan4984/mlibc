@@ -17,6 +17,7 @@ int sys_open(const char *pathname, int flags, mode_t mode, int *fd);
 int sys_close(int fd);
 int sys_read(int fd, void *buf, size_t count, ssize_t *bytes_read);
 int sys_write(int fd, const void *buf, size_t count, ssize_t *bytes_written);
+int sys_ioctl(int fd, unsigned long request, void *arg, int *result);
 
 [[gnu::weak]] int sys_dup2(int fd, int flags, int newfd);
 [[gnu::weak]] int sys_fork(pid_t *child);
@@ -71,8 +72,6 @@ int sys_write(int fd, const void *buf, size_t count, ssize_t *bytes_written);
 [[gnu::weak]] int sys_removexattr(const char *path, const char *name);
 [[gnu::weak]] int sys_lremovexattr(const char *path, const char *name);
 [[gnu::weak]] int sys_fremovexattr(int fd, const char *name);
-
-[[gnu::weak]] int sys_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
 
 } // namespace mlibc
 

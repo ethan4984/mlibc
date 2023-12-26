@@ -17,14 +17,17 @@
 
 namespace mlibc {
 
+static constexpr bool logIoctls = false;
+
 int ioctl_drm(int fd, unsigned long request, void *arg, int *result, HelHandle handle);
 
 int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
-//	mlibc::infoLogger() << "mlibc: ioctl with"
-//			<< " type: 0x" << frg::hex_fmt(_IOC_TYPE(request))
-//			<< ", number: 0x" << frg::hex_fmt(_IOC_NR(request))
-//			<< " (raw request: " << frg::hex_fmt(request) << ")"
-//			<< " on fd " << fd << frg::endlog;
+	if(logIoctls)
+		mlibc::infoLogger() << "mlibc: ioctl with"
+				<< " type: 0x" << frg::hex_fmt(_IOC_TYPE(request))
+				<< ", number: 0x" << frg::hex_fmt(_IOC_NR(request))
+				<< " (raw request: " << frg::hex_fmt(request) << ")"
+				<< " on fd " << fd << frg::endlog;
 
 	SignalGuard sguard;
 	auto handle = getHandleForFd(fd);
@@ -167,7 +170,8 @@ int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
 		managarm::fs::GenericIoctlReply<MemoryAllocator> resp(getSysdepsAllocator());
 		resp.ParseFromArray(recv_resp.data(), recv_resp.length());
 		__ensure(resp.error() == managarm::fs::Errors::SUCCESS);
-		*result = resp.result();
+		if(result)
+			*result = resp.result();
 		return 0;
 	}
 	case TIOCSCTTY: {
@@ -337,7 +341,7 @@ int sys_ioctl(int fd, unsigned long request, void *arg, int *result) {
 
 		managarm::fs::GenericIoctlRequest<MemoryAllocator> req(getSysdepsAllocator());
 		req.set_command(request);
-		req.set_pgid((long int)param);
+		req.set_pgid(*param);
 
 		frg::string<MemoryAllocator> ser(getSysdepsAllocator());
 		req.SerializeToString(&ser);

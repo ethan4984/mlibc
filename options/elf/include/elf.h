@@ -19,8 +19,9 @@ extern "C" {
 #define SHF_WRITE 1
 #define SHF_ALLOC 2
 #define SHF_EXECINSTR 4
-#define SHF_STRINGS 16
-#define SHF_TLS 512
+#define SHF_STRINGS 32
+#define SHF_INFO_LINK 64
+#define SHF_TLS 1024
 
 typedef uint64_t Elf64_Addr;
 typedef uint64_t Elf64_Off;
@@ -219,25 +220,58 @@ enum {
 enum {
 	R_X86_64_NONE = 0,
 	R_X86_64_64 = 1,
+	R_X86_64_PC32 = 2,
+	R_X86_64_PLT32 = 4,
 	R_X86_64_COPY = 5,
 	R_X86_64_GLOB_DAT = 6,
 	R_X86_64_JUMP_SLOT = 7,
 	R_X86_64_RELATIVE = 8,
+	R_X86_64_GOTPCREL = 9,
+	R_X86_64_32 = 10,
+	R_X86_64_32S = 11,
+	R_X86_64_PC16 = 13,
+	R_X86_64_PC8 = 15,
 	R_X86_64_DTPMOD64 = 16,
 	R_X86_64_DTPOFF64 = 17,
 	R_X86_64_TPOFF64 = 18,
+	R_X86_64_PC64 = 24,
+	R_X86_64_GOTPC32 = 26,
+	R_X86_64_TLSDESC = 36,
 	R_X86_64_IRELATIVE = 37,
 };
 
 enum {
+	R_386_NONE = 0,
+	R_386_32 = 1,
+	R_386_PC32 = 2,
+	R_386_COPY = 5,
+	R_386_GLOB_DAT = 6,
+	R_386_JMP_SLOT = 7,
+	R_386_RELATIVE = 8,
+	R_386_TLS_TPOFF = 14,
+	R_386_TLS_DTPMOD32 = 35,
+	R_386_TLS_DTPOFF32 = 36,
+	R_386_TLS_DESC = 41,
+	R_386_IRELATIVE = 42,
+};
+
+enum {
+	R_AARCH64_NONE = 0,
 	R_AARCH64_ABS64 = 257,
 	R_AARCH64_COPY = 1024,
 	R_AARCH64_GLOB_DAT = 1025,
 	R_AARCH64_JUMP_SLOT = 1026,
 	R_AARCH64_RELATIVE = 1027,
-	R_AARCH64_TLS_TPREL = 1030,
-	R_AARCH64_TLSDESC = 1031
+	R_AARCH64_TLS_DTPREL64 = 1028,
+	R_AARCH64_TLS_DTPMOD64 = 1029,
+	R_AARCH64_TLS_TPREL64 = 1030,
+	R_AARCH64_TLSDESC = 1031,
+	R_AARCH64_IRELATIVE = 1032,
 };
+
+#define R_AARCH64_TLS_DTPREL R_AARCH64_TLS_DTPREL64
+#define R_AARCH64_TLS_DTPMOD R_AARCH64_TLS_DTPMOD64
+#define R_AARCH64_TLS_TPREL R_AARCH64_TLS_TPREL64
 
 enum {
 	R_RISCV_NONE = 0,
@@ -252,8 +286,14 @@ enum {
 	R_RISCV_TLS_DTPREL64 = 9,
 	R_RISCV_TLS_TPREL32 = 10,
 	R_RISCV_TLS_TPREL64 = 11,
+	R_RISCV_TLSDESC = 12, // currently a draft but looking good
 	R_RISCV_IRELATIVE = 58
 };
+
+typedef struct {
+	Elf32_Addr r_offset;
+	Elf32_Word r_info;
+} Elf32_Rel;
 
 typedef struct {
 	Elf64_Addr r_offset;
@@ -261,16 +301,35 @@ typedef struct {
 } Elf64_Rel;
 
 typedef struct {
+	Elf32_Addr r_offset;
+	Elf32_Word r_info;
+	Elf32_Sword r_addend;
+} Elf32_Rela;
+
+typedef struct {
 	Elf64_Addr r_offset;
 	Elf64_Xword r_info;
 	Elf64_Sxword r_addend;
 } Elf64_Rela;
+
+typedef Elf32_Word Elf32_Relr;
+typedef Elf64_Xword Elf64_Relr;
 
 __MLIBC_INLINE_DEFINITION Elf64_Xword ELF64_R_SYM(Elf64_Xword info) {
 	return info >> 32;
 }
 __MLIBC_INLINE_DEFINITION Elf64_Xword ELF64_R_TYPE(Elf64_Xword info) {
 	return info & 0xFFFFFFFF;
+}
+__MLIBC_INLINE_DEFINITION Elf64_Xword ELF64_R_INFO(Elf64_Xword sym, Elf64_Xword type) {
+	return ((((Elf64_Xword)(sym)) << 32) + (type));
+}
+
+__MLIBC_INLINE_DEFINITION Elf32_Word ELF32_R_SYM(Elf32_Word info) {
+	return info >> 8;
+}
+__MLIBC_INLINE_DEFINITION Elf32_Word ELF32_R_TYPE(Elf32_Word info) {
+	return info & 0xFF;
 }
 
 enum {
@@ -344,6 +403,8 @@ enum {
 	DT_RPATH = 15,
 	DT_SYMBOLIC = 16,
 	DT_REL = 17,
+	DT_RELSZ = 18,
+	DT_RELENT = 19,
 	DT_TEXTREL = 22,
 	DT_BIND_NOW = 24,
 	DT_INIT_ARRAY = 25,
@@ -357,6 +418,9 @@ enum {
 	DT_FLAGS = 30,
 	DT_PREINIT_ARRAY = 32,
 	DT_PREINIT_ARRAYSZ = 33,
+	DT_RELRSZ = 35,
+	DT_RELR = 36,
+	DT_RELRENT = 37,
 	DT_LOOS = 0x6000000d,
 	DT_HIOS = 0x6ffff000,
 	DT_GNU_HASH = 0x6ffffef5,
@@ -364,6 +428,7 @@ enum {
 	DT_TLSDESC_GOT = 0x6ffffef7,
 	DT_VERSYM = 0x6ffffff0,
 	DT_RELACOUNT = 0x6ffffff9,
+	DT_RELCOUNT = 0x6ffffffa,
 	DT_FLAGS_1 = 0x6ffffffb,
 	DT_VERDEF = 0x6ffffffc,
 	DT_VERDEFNUM = 0x6ffffffd,
@@ -496,20 +561,26 @@ typedef struct {
 #define SHN_HIRESERVE	0xff00
 
 /* values for e_machine */
-#define EM_NONE		  0
-#define EM_SPARC	  2
-#define EM_386		  3
-#define EM_MIPS		  8
-#define EM_PPC		  20
-#define EM_PPC64	  21
-#define EM_S390		  22
-#define EM_ARM		  40
-#define EM_SH		    42
+#define EM_NONE			0
+#define EM_M32			1
+#define EM_SPARC		2
+#define EM_386			3
+#define EM_68K			4
+#define EM_MIPS			8
+#define EM_PARISC		15
+#define EM_PPC			20
+#define EM_PPC64		21
+#define EM_S390			22
+#define EM_ARM			40
+#define EM_SH				42
 #define EM_SPARCV9	43
-#define EM_IA_64	  50
-#define EM_X86_64	  62
+#define EM_IA_64		50
+#define EM_X86_64		62
 #define EM_BLACKFIN	106
 #define EM_AARCH64	183
+
+/* Linux notes this value as being interim; however applications are using this (Qt6), so we define it here. */
+#define EM_ALPHA		0x9026
 
 /* values for e_version */
 #define EV_NONE		0

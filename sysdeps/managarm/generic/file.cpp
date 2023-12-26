@@ -729,11 +729,10 @@ int sys_tcgetattr(int fd, struct termios *attr) {
 }
 
 int sys_tcsetattr(int fd, int when, const struct termios *attr) {
-	if(when != TCSANOW)
-		mlibc::infoLogger() << "\e[35mmlibc: tcsetattr() when argument ignored\e[39m"
-				<< frg::endlog;
-	int result;
-	if(int e = sys_ioctl(fd, TCSETS, const_cast<struct termios *>(attr), &result); e)
+	if(when < TCSANOW || when > TCSAFLUSH)
+		return EINVAL;
+
+	if(int e = sys_ioctl(fd, TCSETS, const_cast<struct termios *>(attr), nullptr); e)
 		return e;
 	return 0;
 }
@@ -744,8 +743,8 @@ int sys_tcdrain(int) {
 }
 
 int sys_socket(int domain, int type_and_flags, int proto, int *fd) {
-	constexpr int type_mask = int(0xFFFF);
-	constexpr int flags_mask = ~int(0xFFFF);
+	constexpr int type_mask = int(0xF);
+	constexpr int flags_mask = ~int(0xF);
 	__ensure(!((type_and_flags & flags_mask) & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)));
 
 	SignalGuard sguard;
@@ -807,8 +806,8 @@ int sys_pipe(int *fds, int flags) {
 }
 
 int sys_socketpair(int domain, int type_and_flags, int proto, int *fds) {
-	constexpr int type_mask = int(0xFFFF);
-	constexpr int flags_mask = ~int(0xFFFF);
+	constexpr int type_mask = int(0xF);
+	constexpr int flags_mask = ~int(0xF);
 	__ensure(!((type_and_flags & flags_mask) & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)));
 
 	SignalGuard sguard;
@@ -1418,13 +1417,16 @@ int sys_open(const char *path, int flags, mode_t mode, int *fd) {
 	return sys_openat(AT_FDCWD, path, flags, mode, fd);
 }
 
-int sys_openat(int dirfd, const char *path, int flags, mode_t, int *fd) {
+int sys_openat(int dirfd, const char *path, int flags, mode_t mode, int *fd) {
 	SignalGuard sguard;
 
-	mlibc::infoLogger() << "\e[35mmlibc: sys_openat() ignores mode\e[39m"
-				<< frg::endlog;
+	// We do not support O_TMPFILE.
+	if(flags & O_TMPFILE)
+		return EOPNOTSUPP;
 
 	uint32_t proto_flags = 0;
+	if(flags & O_APPEND)
+		proto_flags |= managarm::posix::OpenFlags::OF_APPEND;
 	if(flags & O_CREAT)
 		proto_flags |= managarm::posix::OpenFlags::OF_CREATE;
 	if(flags & O_EXCL)
@@ -1452,6 +1454,7 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t, int *fd) {
 	req.set_fd(dirfd);
 	req.set_path(frg::string<MemoryAllocator>(getSysdepsAllocator(), path));
 	req.set_flags(proto_flags);
+	req.set_mode(mode);
 
 	auto [offer, sendHead, sendTail, recvResp] = exchangeMsgsSync(
 		getPosixLane(),
@@ -1522,6 +1525,8 @@ int sys_mkfifoat(int dirfd, const char *path, mode_t mode) {
 		return EBADF;
 	}else if(resp.error() == managarm::posix::Errors::ILLEGAL_ARGUMENTS) {
 		return EINVAL;
+	}else if(resp.error() == managarm::posix::Errors::INTERNAL_ERROR) {
+		return EIEIO;
 	}else{
 		__ensure(resp.error() == managarm::posix::Errors::SUCCESS);
 		return 0;
@@ -1819,7 +1824,9 @@ int sys_seek(int fd, off_t offset, int whence, off_t *new_offset) {
 	resp.ParseFromArray(recv_resp.data(), recv_resp.length());
 	if(resp.error() == managarm::fs::Errors::SEEK_ON_PIPE) {
 		return ESPIPE;
-	}else{
+	} else if(resp.error() == managarm::fs::Errors::ILLEGAL_ARGUMENT) {
+		return EINVAL;
+	} else {
 		__ensure(resp.error() == managarm::fs::Errors::SUCCESS);
 		*new_offset = resp.offset();
 		return 0;
@@ -2471,9 +2478,9 @@ int sys_uname(struct utsname *buf) {
 	__ensure(buf);
 	mlibc::infoLogger() << "\e[31mmlibc: uname() returns static information\e[39m" << frg::endlog;
 	strcpy(buf->sysname, "Managarm");
-	strcpy(buf->nodename, "?");
-	strcpy(buf->release, "?");
-	strcpy(buf->version, "?");
+	strcpy(buf->nodename, "managarm");
+	strcpy(buf->release, "0.0.1-rolling");
+	strcpy(buf->version, "Managarm is not Managram");
 #if defined(__x86_64__)
 	strcpy(buf->machine, "x86_64");
 #elif defined (__aarch64__)

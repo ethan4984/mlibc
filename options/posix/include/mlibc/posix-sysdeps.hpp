@@ -189,6 +189,7 @@ int sys_vm_unmap(void *pointer, size_t size);
 [[gnu::weak]] int sys_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags);
 [[gnu::weak]] int sys_sigaltstack(const stack_t *ss, stack_t *oss);
 [[gnu::weak]] int sys_sigsuspend(const sigset_t *set);
+[[gnu::weak]] int sys_sigpending(sigset_t *set);
 [[gnu::weak]] int sys_setgroups(size_t size, const gid_t *list);
 [[gnu::weak]] int sys_statfs(const char *path, struct statfs *buf);
 [[gnu::weak]] int sys_fstatfs(int fd, struct statfs *buf);
@@ -227,6 +228,12 @@ int sys_vm_unmap(void *pointer, size_t size);
 
 [[gnu::weak]] int sys_semget(key_t key, int n, int fl, int *id);
 [[gnu::weak]] int sys_semctl(int semid, int semnum, int cmd, void *semun, int *ret);
+
+[[gnu::weak]] int sys_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask);
+[[gnu::weak]] int sys_getthreadaffinity(pid_t tid, size_t cpusetsize, cpu_set_t *mask);
+
+[[gnu::weak]] int sys_setaffinity(pid_t pid, size_t cpusetsize, const cpu_set_t *mask);
+[[gnu::weak]] int sys_setthreadaffinity(pid_t tid, size_t cpusetsize, const cpu_set_t *mask);
 
 } //namespace mlibc
 
